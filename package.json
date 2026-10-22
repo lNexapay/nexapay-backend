@@ -20,6 +20,7 @@
   },
   "homepage": "https://github.com/lNexapay/nexapay-backend#readme",
   "dependencies": {
+    "dotenv": "^18.0.9",
     "express": "^5.3.0"
   },
   "devDependencies": {
