@@ -1,0 +1,1 @@
+//# lógica de compra, venta y conversión
