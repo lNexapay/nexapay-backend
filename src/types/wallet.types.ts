@@ -37,3 +37,13 @@ export interface WalletRepository {
   saveTransaction(tx: Omit<Transaction, "id" | "createdAt">): Promise<Transaction>;
 }
 
+export interface TotalBalance {
+  walletId: string;
+  baseCurrency: CurrencyCode;
+  total: number;
+  breakdown: {
+    currencyCode: CurrencyCode;
+    amount: number;       // saldo en su moneda original
+    convertedAmount: number; // equivalente en la moneda base
+  }[];
+}
