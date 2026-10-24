@@ -64,6 +64,7 @@ Con eso, `DATABASE_URL=postgres://postgres:postgres@localhost:5432/nexapay`.
 | `PORT` | Puerto del servidor | `3000` |
 | `DATABASE_URL` | Conexión a PostgreSQL | `postgres://postgres:postgres@localhost:5432/nexapay` |
 | `JWT_SECRET` | Clave para firmar los tokens. Usa un valor largo y aleatorio | `cambia-esto-por-un-secreto-largo` |
+| `FRONTEND_URL` | Origen del frontend permitido por CORS además de `http://localhost:5173` (por ejemplo, el dominio de Vercel) | `https://nexapay.vercel.app` |
 
 El archivo `.env` **nunca se sube a Git**.
 
@@ -71,7 +72,7 @@ El archivo `.env` **nunca se sube a Git**.
 
 | Comando | Descripción |
 |---------|-------------|
-| `npm run dev` | Servidor con recarga automática |
+| `npm run dev` | Servidor con recarga automática (`tsx watch`) |
 | `npm run build` | Compila TypeScript a `dist/` |
 | `npm start` | Ejecuta la versión compilada (`dist/server.js`) |
 | `npm test` | Ejecuta las pruebas una vez |
@@ -98,7 +99,7 @@ Las rutas protegidas esperan la cabecera `Authorization: Bearer <token>`. El ref
 
 > Los errores de wallet los gestiona el middleware `errorHandler` (`AppError`); los de auth responden hoy con su propio formato. Unificarlos queda pendiente.
 
-> CORS permite el origen `http://localhost:5173` (frontend en desarrollo) con credenciales.
+> CORS permite con credenciales el origen `http://localhost:5173` (desarrollo) y el definido en `FRONTEND_URL` (frontend desplegado, por ejemplo en Vercel).
 
 ## Base de datos
 
