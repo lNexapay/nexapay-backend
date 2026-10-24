@@ -2,6 +2,8 @@ import express from "express";
 import cors from "cors";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./docs/swagger";
+import routes from "./routes";
+import { errorHandler } from "./middlewares/errorHandler";
 
 const app = express();
 
@@ -20,5 +22,9 @@ app.get("/api/health", (_req, res) => {
         message: "NEXAPAY API funcionando correctamente"
     });
 });
+
+app.use("/api", routes);
+
+app.use(errorHandler);
 
 export default app;
