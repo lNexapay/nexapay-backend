@@ -11,3 +11,6 @@ dist/
 
 # Archivos del sistema macOS
 .DS_Store
+
+# Cookies utilizadas en pruebas locales
+cookies.txt
