@@ -9,11 +9,14 @@ import { errorHandler } from "./middlewares/errorHandler";
 const app = express();
 
 /**
- * Permite que el frontend de NEXAPAY
- * envíe cookies de sesión al backend.
+ * Permite solicitudes desde React en desarrollo
+ * y desde el frontend desplegado en Vercel.
  */
 app.use(cors({
-    origin: "http://localhost:5173",
+    origin: [
+        "http://localhost:5173",
+        process.env.FRONTEND_URL || "http://localhost:5173"
+    ],
     credentials: true
 }));
 
