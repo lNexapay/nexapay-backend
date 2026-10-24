@@ -113,3 +113,14 @@ export const loginUser = async (
         }
     };
 };
+
+export const getUserById = async (userId: string) => {
+    const result = await pool.query(
+        `SELECT id, name, email, created_at
+         FROM users
+         WHERE id = $1`,
+        [userId]
+    );
+
+    return result.rows[0] ?? null;
+};

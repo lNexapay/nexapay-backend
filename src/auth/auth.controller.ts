@@ -6,7 +6,7 @@
  */
 
 import { Request, Response } from "express";
-import { registerUser } from "./auth.service";
+import { registerUser, loginUser, getUserById } from "./auth.service";
 
 export const register = async (req: Request, res: Response) => {
     try {
@@ -71,12 +71,73 @@ export const register = async (req: Request, res: Response) => {
     }
 };
 
-// Por ahora, mantenemos el login como prueba.
-export const login = (req: Request, res: Response) => {
-    const { email } = req.body;
+export const login = async (req: Request, res: Response) => {
+    try {
+        const { email, password } = req.body;
 
-    res.status(200).json({
-        message: "Datos de login recibidos",
-        email
-    });
+        // Validar los datos recibidos.
+        if (
+            typeof email !== "string" ||
+            typeof password !== "string" ||
+            !email.trim() ||
+            !password
+        ) {
+            res.status(400).json({
+                message: "Ingresá email y contraseña"
+            });
+            return;
+        }
+
+        // Verificar credenciales y generar el token.
+        const result = await loginUser(
+            email.trim().toLowerCase(),
+            password
+        );
+
+        res.status(200).json({
+            message: "Inicio de sesión exitoso",
+            ...result
+        });
+
+    } catch (error) {
+        console.error("Error al iniciar sesión:", error);
+
+        if (
+            error instanceof Error &&
+            error.message === "Credenciales incorrectas"
+        ) {
+            res.status(401).json({
+                message: "Email o contraseña incorrectos"
+            });
+            return;
+        }
+
+        res.status(500).json({
+            message: "Error interno al iniciar sesión"
+        });
+    }
+};
+
+export const getMe = async (req: Request, res: Response) => {
+    try {
+        const userId = res.locals.userId;
+
+        const user = await getUserById(userId);
+
+        if (!user) {
+            res.status(404).json({
+                message: "Usuario no encontrado"
+            });
+            return;
+        }
+
+        res.status(200).json({ user });
+
+    } catch (error) {
+        console.error("Error al obtener usuario:", error);
+
+        res.status(500).json({
+            message: "Error interno al obtener usuario"
+        });
+    }
 };
