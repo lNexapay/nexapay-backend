@@ -7,6 +7,12 @@
 
 import { Request, Response } from "express";
 import { registerUser, loginUser, getUserById } from "./auth.service";
+import jwt from "jsonwebtoken";
+import {
+    validateRefreshToken,
+    revokeRefreshToken,
+    updateSessionActivity
+} from "./refresh-token.service";
 
 export const register = async (req: Request, res: Response) => {
     try {
@@ -94,9 +100,20 @@ export const login = async (req: Request, res: Response) => {
             password
         );
 
+        // Guardar el refresh token en una cookie HttpOnly.
+        res.cookie("refreshToken", result.refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            maxAge: 24 * 60 * 60 * 1000,
+            path: "/api/auth"
+        });
+
+        // Enviar solamente el access token y los datos del usuario.
         res.status(200).json({
             message: "Inicio de sesión exitoso",
-            ...result
+            token: result.token,
+            user: result.user
         });
 
     } catch (error) {
@@ -138,6 +155,144 @@ export const getMe = async (req: Request, res: Response) => {
 
         res.status(500).json({
             message: "Error interno al obtener usuario"
+        });
+    }
+};
+
+export const refresh = async (req: Request, res: Response) => {
+    try {
+        // Obtener las cookies enviadas por el navegador.
+        const cookies = req.headers.cookie;
+
+        // Buscar la cookie que contiene el refresh token.
+        const refreshCookie = cookies
+            ?.split(";")
+            .map(cookie => cookie.trim())
+            .find(cookie => cookie.startsWith("refreshToken="));
+
+        const refreshToken = refreshCookie
+            ? refreshCookie.substring("refreshToken=".length)
+            : null;
+
+        if (!refreshToken) {
+            res.status(401).json({
+                message: "No hay una sesión para renovar"
+            });
+            return;
+        }
+
+        // Verificar que la sesión exista y no haya vencido.
+        const session = await validateRefreshToken(refreshToken);
+
+        if (!session) {
+            res.status(401).json({
+                message: "Sesión vencida o inválida"
+            });
+            return;
+        }
+
+        const jwtSecret = process.env.JWT_SECRET;
+
+        if (!jwtSecret) {
+            throw new Error("JWT_SECRET no está configurado");
+        }
+
+        // Generar un nuevo JWT válido durante 15 minutos.
+        const token = jwt.sign(
+            { userId: session.user_id },
+            jwtSecret,
+            { expiresIn: "15m" }
+        );
+
+        res.status(200).json({
+            token
+        });
+
+    } catch (error) {
+        console.error("Error al renovar sesión:", error);
+
+        res.status(500).json({
+            message: "Error interno al renovar sesión"
+        });
+    }
+};
+
+export const logout = async (req: Request, res: Response) => {
+    try {
+        // Obtener el refresh token desde las cookies.
+        const refreshCookie = req.headers.cookie
+            ?.split(";")
+            .map(cookie => cookie.trim())
+            .find(cookie => cookie.startsWith("refreshToken="));
+
+        const refreshToken = refreshCookie
+            ? refreshCookie.substring("refreshToken=".length)
+            : null;
+
+        // Revocar la sesión si existe un refresh token.
+        if (refreshToken) {
+            await revokeRefreshToken(refreshToken);
+        }
+
+        // Eliminar la cookie del navegador.
+        res.clearCookie("refreshToken", {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: "/api/auth"
+        });
+
+        res.status(200).json({
+            message: "Sesión cerrada correctamente"
+        });
+
+    } catch (error) {
+        console.error("Error al cerrar sesión:", error);
+
+        res.status(500).json({
+            message: "Error interno al cerrar sesión"
+        });
+    }
+};
+
+export const activity = async (req: Request, res: Response) => {
+    try {
+        // Obtener el refresh token desde la cookie.
+        const refreshCookie = req.headers.cookie
+            ?.split(";")
+            .map(cookie => cookie.trim())
+            .find(cookie => cookie.startsWith("refreshToken="));
+
+        const refreshToken = refreshCookie
+            ? refreshCookie.substring("refreshToken=".length)
+            : null;
+
+        if (!refreshToken) {
+            res.status(401).json({
+                message: "Sesión no encontrada"
+            });
+            return;
+        }
+
+        // Actualizar la actividad si la sesión sigue vigente.
+        const session = await updateSessionActivity(refreshToken);
+
+        if (!session) {
+            res.status(401).json({
+                message: "Sesión vencida o inactiva"
+            });
+            return;
+        }
+
+        res.status(200).json({
+            message: "Actividad registrada correctamente"
+        });
+
+    } catch (error) {
+        console.error("Error al registrar actividad:", error);
+
+        res.status(500).json({
+            message: "Error interno al registrar actividad"
         });
     }
 };

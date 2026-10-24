@@ -8,7 +8,7 @@
 import bcrypt from "bcrypt";
 import pool from "../config/database";
 import jwt from "jsonwebtoken";
-
+import { createRefreshSession } from "./refresh-token.service";
 
 export const registerUser = async (
     name: string,
@@ -80,6 +80,9 @@ export const loginUser = async (
         throw new Error("Credenciales incorrectas");
     }
 
+    // Crear una sesión de renovación en PostgreSQL.
+    const refreshToken = await createRefreshSession(user.id);
+
     // Comparar la contraseña con el hash almacenado.
     const validPassword = await bcrypt.compare(
         password,
@@ -97,15 +100,16 @@ export const loginUser = async (
         throw new Error("JWT_SECRET no está configurado");
     }
 
-    // Generar el token de autenticación.
+    // Generar un access token válido durante 15 minutos.
     const token = jwt.sign(
         { userId: user.id },
         jwtSecret,
-        { expiresIn: "1h" }
+        { expiresIn: "15m" }
     );
 
     return {
         token,
+        refreshToken,
         user: {
             id: user.id,
             name: user.name,
