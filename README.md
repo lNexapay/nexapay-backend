@@ -1,125 +1,161 @@
-# nexapay-backend
+# NexaPay Backend
 
-## API – Autenticación
+API de **NexaPay**, una billetera digital multimoneda (USD, EUR, COP, ARS). Este repositorio contiene el **backend**; la interfaz web está en [`nexapay-frontend`](https://github.com/lNexapay/nexapay-frontend).
 
-El backend de NEXAPAY utiliza Express, TypeScript y PostgreSQL.
+## Qué incluye hoy
 
-### URL base
+| Módulo | Estado | Detalle |
+|--------|--------|---------|
+| **Autenticación** | Funcional | Registro (crea también la billetera), login con JWT, refresh tokens, cierre de sesión, control de actividad y ruta protegida `/me` |
+| **Monedas y tasas** | Funcional | Catálogo de monedas y tasas de cambio de ejemplo |
+| **Saldos (wallet)** | En desarrollo | Lógica de saldos y conversión implementada sobre un almacén **en memoria** (`src/data/wallet.store.ts`); aún sin endpoints ni conexión a la base de datos |
+| **Transacciones** | Pendiente | Archivos de estructura creados; la tabla ya existe en las migraciones |
+| **Documentación de la API** | Funcional | Swagger UI en `/api-docs` |
 
-Durante el desarrollo local:
+## Stack
 
-`http://localhost:3000`
+- Node.js + TypeScript
+- Express 5
+- PostgreSQL (`pg`) con migraciones SQL (`node-pg-migrate`)
+- JWT (`jsonwebtoken`) y `bcrypt` para contraseñas
+- Swagger (`swagger-jsdoc` + `swagger-ui-express`)
+- Pruebas con Vitest y Supertest
 
-Cuando el backend esté desplegado en Railway, se utilizará la URL pública correspondiente.
+## Requisitos
 
-### 1. Registrar usuario
+- Node.js 20 o superior
+- PostgreSQL 13 o superior (las migraciones usan `gen_random_uuid()`)
+- Git
 
-**Endpoint:** `POST /api/auth/register`
+## Inicio rápido
 
-**Estado:** Implementado y probado.
+```bash
+# 1. Clonar e instalar
+git clone https://github.com/lNexapay/nexapay-backend.git
+cd nexapay-backend
+npm install
 
-**Body (JSON):**
+# 2. Variables de entorno
+cp .env.example .env
+# Edita .env (ver tabla más abajo)
 
-```json
-{
-  "name": "Juan Pérez",
-  "email": "juan@gmail.com",
-  "password": "MiClave123"
-}
+# 3. Crear las tablas
+npm run migrate:up
+
+# 4. Iniciar en modo desarrollo
+npm run dev
 ```
 
-**Respuesta exitosa — 201 Created:**
+El servidor queda en `http://localhost:3000`. Comprueba que responde en `http://localhost:3000/api/health`.
 
-```json
-{
-  "message": "Usuario registrado correctamente",
-  "user": {
-    "id": "uuid-del-usuario",
-    "name": "Juan Pérez",
-    "email": "juan@gmail.com",
-    "created_at": "2026-10-23T15:17:33.080Z"
-  }
-}
+### PostgreSQL con Docker (opcional)
+
+```bash
+docker run --name nexapay-db -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=nexapay -p 5432:5432 -d postgres:16
 ```
 
-**Errores posibles:**
+Con eso, `DATABASE_URL=postgres://postgres:postgres@localhost:5432/nexapay`.
 
-- `400 Bad Request`: faltan datos o la contraseña tiene menos de 8 caracteres.
-- `409 Conflict`: el email ya está registrado.
-- `500 Internal Server Error`: ocurrió un error inesperado.
+## Variables de entorno
 
-**Comportamiento:** al registrarse correctamente, se crea automáticamente una billetera asociada al usuario.
+| Variable | Descripción | Ejemplo |
+|----------|-------------|---------|
+| `PORT` | Puerto del servidor | `3000` |
+| `DATABASE_URL` | Conexión a PostgreSQL | `postgres://postgres:postgres@localhost:5432/nexapay` |
+| `JWT_SECRET` | Clave para firmar los tokens. Usa un valor largo y aleatorio | `cambia-esto-por-un-secreto-largo` |
 
-### 2. Iniciar sesión
+El archivo `.env` **nunca se sube a Git**.
 
-**Endpoint:** `POST /api/auth/login`
+## Scripts
 
-**Estado:** En desarrollo. La ruta existe, pero todavía no autentica al usuario ni genera un JWT.
+| Comando | Descripción |
+|---------|-------------|
+| `npm run dev` | Servidor con recarga automática |
+| `npm run build` | Compila TypeScript a `dist/` |
+| `npm start` | Ejecuta la versión compilada (`dist/server.js`) |
+| `npm test` | Ejecuta las pruebas una vez |
+| `npm run test:watch` | Pruebas en modo observación |
+| `npm run migrate:up` | Aplica las migraciones pendientes |
 
-**Body previsto (JSON):**
+## Endpoints
 
-```json
-{
-  "email": "juan@gmail.com",
-  "password": "MiClave123"
-}
+Documentación interactiva: **`http://localhost:3000/api-docs`**.
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `GET` | `/api/health` | No | Estado de la API |
+| `POST` | `/api/auth/register` | No | Crea usuario y su billetera |
+| `POST` | `/api/auth/login` | No | Inicia sesión |
+| `POST` | `/api/auth/refresh` | Cookie | Renueva la sesión |
+| `POST` | `/api/auth/logout` | Cookie | Cierra la sesión |
+| `POST` | `/api/auth/activity` | Sí | Registra actividad de la sesión |
+| `GET` | `/api/auth/me` | Sí | Datos del usuario autenticado |
+| `GET` | `/api/currencies` | No | Monedas disponibles |
+| `GET` | `/api/rates` | No | Tasas de cambio |
+
+Las rutas protegidas esperan la cabecera `Authorization: Bearer <token>`. El refresh token viaja en una cookie `HttpOnly` (`refreshToken`), por eso el frontend debe hacer las peticiones con `credentials: "include"`.
+
+> Los errores de wallet los gestiona el middleware `errorHandler` (`AppError`); los de auth responden hoy con su propio formato. Unificarlos queda pendiente.
+
+> CORS permite el origen `http://localhost:5173` (frontend en desarrollo) con credenciales.
+
+## Base de datos
+
+Las migraciones están en `migrations/` y se aplican en orden:
+
+| # | Tabla / cambio |
+|---|----------------|
+| 001 | `users` |
+| 002 | `wallets` (una por usuario) |
+| 003 | `balances` |
+| 004 | `contexts` |
+| 005 | `transactions` |
+| 006 | `context_budgets` |
+| 007 | `exchange_rates_cache` |
+| 008 | `refresh_tokens` |
+| 009 | `last_activity` en `refresh_tokens` |
+
+Reglas: no edites una migración que ya está en `main` (crea una nueva) e incluye la migración en el mismo PR que el código que la necesita.
+
+## Estructura
+
+```
+.
+├── migrations/        # Migraciones SQL
+├── src/
+│   ├── server.ts      # Arranque del servidor
+│   ├── app.ts         # Express, CORS, rutas y manejo de errores
+│   ├── auth/          # Registro, login, JWT, refresh tokens
+│   ├── config/        # Base de datos y catálogo de monedas
+│   ├── controllers/   # Traducen HTTP a servicios
+│   ├── services/      # Lógica de negocio (saldos, monedas, transacciones)
+│   ├── routes/        # Definición de endpoints (con anotaciones Swagger)
+│   ├── data/          # Almacén en memoria de la wallet (temporal)
+│   ├── middlewares/   # errorHandler
+│   ├── docs/          # Configuración de Swagger
+│   ├── types/         # Tipos de la wallet
+│   └── utils/         # AppError y validadores
+└── test/              # Pruebas de rutas y servicios
 ```
 
-**Respuesta prevista:**
+## Cómo trabajamos
 
-```json
-{
-  "token": "jwt-del-usuario",
-  "user": {
-    "id": "uuid-del-usuario",
-    "name": "Juan Pérez",
-    "email": "juan@gmail.com"
-  }
-}
+1. Crea una rama desde `main`: `feat/...`, `fix/...`, `docs/...`.
+2. Commits claros, por ejemplo `feat(wallet): agrega conversión de monedas`.
+3. Abre un Pull Request hacia `main` y pide revisión.
+4. Antes de abrirlo, verifica en local:
+
+```bash
+npx tsc --noEmit
+npm test
 ```
 
-La respuesta definitiva se documentará cuando esté implementado el login.
+No subas `.env`, llaves ni datos reales.
 
-### 3. Renovación de sesión
+## Pendientes conocidos
 
-**Endpoint previsto:** `POST /api/auth/refresh`
-
-**Estado:** Pendiente de implementación.
-
-Permitirá renovar el token de acceso sin solicitar nuevamente la contraseña, mientras la sesión siga siendo válida.
-
-### Integración desde React
-
-Ejemplo para registrar un usuario:
-
-```ts
-const response = await fetch(
-  "http://localhost:3000/api/auth/register",
-  {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      name: "Juan Pérez",
-      email: "juan@gmail.com",
-      password: "MiClave123"
-    })
-  }
-);
-
-const data = await response.json();
-
-if (!response.ok) {
-  throw new Error(data.message);
-}
-
-console.log(data);
-```
-
-**Importante:**
-
-- El frontend debe enviar los datos en formato JSON.
-- Nunca debe enviar ni recibir el hash de la contraseña.
-- El backend actualmente permite peticiones CORS desde `http://localhost:5173`.
-- Los endpoints de login y refresh todavía no están listos para integrarse completamente.
+- Conectar la wallet (saldos y transacciones) a PostgreSQL y retirar el almacén en memoria.
+- Exponer los endpoints de saldos y transacciones.
+- Completar las pruebas marcadas como `todo` en `test/`.
+- Definir la licencia (el `package.json` declara `ISC` por defecto).
