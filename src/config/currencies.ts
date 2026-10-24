@@ -15,3 +15,6 @@ export const RATES_PER_USD: Record<string, number> = {
   COP: 4000,
   EUR: 0.92,
 };
+
+// Momento en que se definieron las tasas ("actualizado hace X min" en el frontend).
+export const RATES_UPDATED_AT = new Date();

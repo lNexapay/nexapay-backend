@@ -14,12 +14,13 @@ export interface Balance {
   updatedAt: Date;
 }
 
-export type TransactionType = "buy" | "sell" | "convert";
+export type TransactionType = "deposit" | "convert" | "transfer";
 export type TransactionStatus = "pending" | "completed" | "failed";
 
 export interface Transaction {
   id: string;
   walletId: string;
+  contextId?: string;
   type: TransactionType;
   currencyFrom: CurrencyCode;
   currencyTo: CurrencyCode;
@@ -27,15 +28,10 @@ export interface Transaction {
   amountTo: number;
   rateUsed: number;
   status: TransactionStatus;
+  description?: string;
   createdAt: Date;
 }
 
-export interface WalletRepository {
-  getBalances(walletId: string): Promise<Balance[]>;
-  getBalance(walletId: string, currency: CurrencyCode): Promise<Balance | null>;
-  setBalance(walletId: string, currency: CurrencyCode, amount: number): Promise<Balance>;
-  saveTransaction(tx: Omit<Transaction, "id" | "createdAt">): Promise<Transaction>;
-}
 
 export interface TotalBalance {
   walletId: string;
@@ -46,4 +42,12 @@ export interface TotalBalance {
     amount: number;       // saldo en su moneda original
     convertedAmount: number; // equivalente en la moneda base
   }[];
+}
+
+export interface WalletRepository {
+  getBalances(walletId: string): Promise<Balance[]>;
+  getBalance(walletId: string, currency: CurrencyCode): Promise<Balance | null>;
+  setBalance(walletId: string, currency: CurrencyCode, amount: number): Promise<Balance>;
+  saveTransaction(tx: Omit<Transaction, "id" | "createdAt">): Promise<Transaction>;
+  getTransactions(walletId: string, limit?: number): Promise<Transaction[]>;
 }

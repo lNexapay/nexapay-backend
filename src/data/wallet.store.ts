@@ -86,7 +86,15 @@ export class InMemoryWalletRepository implements WalletRepository {
     this.transactions.push(saved);
     return saved;
   }
+  async getTransactions(walletId: string, limit = 20): Promise<Transaction[]> {
+    return this.transactions
+      .filter((t) => t.walletId === walletId)
+      .reverse() // las más recientes primero
+      .slice(0, limit);
+  }
 }
+
+  
 
 // Instancia única que usarán los servicios.
 export const walletRepository: WalletRepository = new InMemoryWalletRepository();
