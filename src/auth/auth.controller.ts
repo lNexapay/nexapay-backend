@@ -104,7 +104,7 @@ export const login = async (req: Request, res: Response) => {
         res.cookie("refreshToken", result.refreshToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
             maxAge: 24 * 60 * 60 * 1000,
             path: "/api/auth"
         });
@@ -238,7 +238,7 @@ export const logout = async (req: Request, res: Response) => {
         res.clearCookie("refreshToken", {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
             path: "/api/auth"
         });
 
