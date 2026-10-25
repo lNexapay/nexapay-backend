@@ -1,0 +1,13 @@
+# CODEOWNERS: define quién debe revisar cada parte del código.
+# GitHub pedirá automáticamente su revisión en los Pull Requests.
+# Docs: https://docs.github.com/es/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Para activarlo, descomenta y reemplaza con usuarios o equipos reales de la organización.
+# (Si pones un usuario o equipo que no existe, GitHub marca el archivo con errores.)
+#
+# Responsables por defecto de todo el repositorio:
+# * @lNexapay/maintainers
+#
+# Ejemplos por carpeta:
+# /.github/   @usuario-admin
+# /docs/      @usuario-admin

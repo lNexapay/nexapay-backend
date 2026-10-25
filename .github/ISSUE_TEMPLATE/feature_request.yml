@@ -1,0 +1,33 @@
+name: Nueva funcionalidad
+description: Propón una idea o mejora
+title: "feat: "
+labels: ["type: feature"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema o necesidad
+      description: ¿Qué problema resuelve o qué necesidad cubre?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Propuesta
+      description: ¿Cómo imaginas la solución?
+    validations:
+      required: true
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Criterios de aceptación
+      description: Condiciones que deben cumplirse para considerarlo terminado.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas

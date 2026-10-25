@@ -1,0 +1,45 @@
+name: Reporte de error
+description: Algo no funciona como se espera
+title: "fix: "
+labels: ["type: bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por reportarlo. Cuantos más detalles, más rápido se puede corregir.
+        **No incluyas contraseñas, tokens ni datos reales de personas.**
+  - type: textarea
+    id: description
+    attributes:
+      label: Descripción del error
+      description: ¿Qué está pasando?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Pasos para reproducirlo
+      placeholder: |
+        1. Ir a '...'
+        2. Hacer clic en '...'
+        3. Ver el error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamiento esperado
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs o capturas
+      description: Pega el error o arrastra una captura de pantalla.
+      render: shell
+  - type: input
+    id: environment
+    attributes:
+      label: Entorno
+      description: Sistema operativo, versión de Node, navegador, rama o commit.
+      placeholder: "Windows 11, Node 22, Chrome 130, rama main"
