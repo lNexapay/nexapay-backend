@@ -1,0 +1,23 @@
+name: Tarea
+description: Trabajo técnico o de mantenimiento (configuración, refactor, documentación)
+title: "chore: "
+labels: ["type: chore"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: ¿Qué hay que hacer?
+    validations:
+      required: true
+  - type: textarea
+    id: checklist
+    attributes:
+      label: Lista de pasos
+      placeholder: |
+        - [ ] Paso 1
+        - [ ] Paso 2
+  - type: textarea
+    id: done
+    attributes:
+      label: Definición de terminado
+      description: ¿Cómo sabemos que la tarea está completa?
