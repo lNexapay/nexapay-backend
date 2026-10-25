@@ -67,6 +67,7 @@ Dependencias de afuera hacia adentro: `routes → controllers → services → d
 - **Access token (JWT)**: dura 15 minutos y viaja en la cabecera `Authorization: Bearer <token>`.
 - **Refresh token**: cookie `HttpOnly` (`refreshToken`, ruta `/api/auth`, 24 h) guardada también en la tabla `refresh_tokens`.
 - El `authMiddleware` exige **ambos**: JWT válido y sesión activa asociada a la cookie. Las sesiones se bloquean tras 15 minutos sin actividad.
+- En producción (`NODE_ENV=production`) la cookie usa `secure: true` y `sameSite: "none"`, para que funcione con el frontend (Vercel) y el backend (Railway) en dominios distintos. En desarrollo usa `sameSite: "lax"`. Por eso, en producción el origen del frontend debe estar en `FRONTEND_URL`.
 - Detalle completo y ejemplos para el frontend: [AUTH_API.md](AUTH_API.md).
 
 ## Estado de la wallet
@@ -85,7 +86,6 @@ La lógica de saldos y conversión existe sobre un almacén en memoria (`wallet.
 
 - Conectar la wallet a PostgreSQL (repositorios) y manejo de transacciones SQL.
 - Unificar el formato de errores entre `auth` y `wallet`.
-- Cookie de sesión en producción con frontend y backend en dominios distintos (`sameSite`, `secure`).
 - Librería de validación de entradas.
 - Estrategia de pruebas de integración con base de datos.
 - Despliegue y entornos (Railway para el backend, Vercel para el frontend).
