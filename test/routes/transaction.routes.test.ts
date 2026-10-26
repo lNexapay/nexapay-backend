@@ -1,5 +1,29 @@
-import { describe, it } from "vitest";
+import { describe, it, expect } from "vitest";
+import request from "supertest";
+import app from "../../src/app";
 
-describe("transaction.routes", () => {
-  it.todo("agregar pruebas");
+describe("rutas de operaciones", () => {
+  it("POST /api/deposit acredita saldo", async () => {
+    const res = await request(app).post("/api/deposit").send({ currency: "USD", amount: 50 });
+    expect(res.status).toBe(201);
+    expect(res.body.type).toBe("deposit");
+  });
+
+  it("POST /api/convert convierte USD a COP", async () => {
+    const res = await request(app).post("/api/convert").send({ from: "USD", to: "COP", amount: 100 });
+    expect(res.status).toBe(201);
+    expect(res.body.amountTo).toBe(316187);
+  });
+
+  it("POST /api/convert sin saldo suficiente responde 400", async () => {
+    const res = await request(app).post("/api/convert").send({ from: "USD", to: "COP", amount: 999999 });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Saldo insuficiente");
+  });
+
+  it("GET /api/transactions devuelve el historial", async () => {
+    const res = await request(app).get("/api/transactions");
+    expect(res.status).toBe(200);
+    expect(res.body.length).toBeGreaterThanOrEqual(2);
+  });
 });

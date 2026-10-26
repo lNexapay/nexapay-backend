@@ -28,6 +28,6 @@ describe("balanceService", () => {
   it("calcula el balance total en USD", async () => {
     const total = await service.getTotalBalance();
     expect(total.baseCurrency).toBe("USD");
-    expect(total.total).toBeCloseTo(1125.37, 1);
+    expect(total.total).toBeCloseTo(1092.51, 1);
   });
 });

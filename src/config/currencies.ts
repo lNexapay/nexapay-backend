@@ -10,10 +10,10 @@ export const SUPPORTED_CURRENCIES: Currency[] = [
 // Cuántas unidades de cada moneda equivalen a 1 USD.
 // Valores de ejemplo para desarrollo: el equipo debe definir los reales.
 export const RATES_PER_USD: Record<string, number> = {
-  ARS: 1000,
+  ARS: 1520.75,
   USD: 1,
-  COP: 4000,
-  EUR: 0.92,
+  COP: 3161.87,
+  EUR: 0.89,
 };
 
 // Momento en que se definieron las tasas ("actualizado hace X min" en el frontend).
