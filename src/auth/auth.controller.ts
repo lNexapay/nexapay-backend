@@ -100,13 +100,24 @@ export const login = async (req: Request, res: Response) => {
             password
         );
 
+        // Borrar la cookie con la ruta anterior (/api/auth), si existe,
+        // para no quedar con dos cookies "refreshToken".
+        res.clearCookie("refreshToken", {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+            path: "/api/auth"
+        });
+
         // Guardar el refresh token en una cookie HttpOnly.
+        // La ruta es /api (y no /api/auth) porque authMiddleware exige esta
+        // cookie también en las rutas de wallet (/api/balances, /api/deposit...).
         res.cookie("refreshToken", result.refreshToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
             sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
             maxAge: 24 * 60 * 60 * 1000,
-            path: "/api/auth"
+            path: "/api"
         });
 
         // Enviar solamente el access token y los datos del usuario.
@@ -234,13 +245,15 @@ export const logout = async (req: Request, res: Response) => {
             await revokeRefreshToken(refreshToken);
         }
 
-        // Eliminar la cookie del navegador.
-        res.clearCookie("refreshToken", {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-            path: "/api/auth"
-        });
+        // Eliminar la cookie del navegador (ruta actual y la anterior).
+        for (const cookiePath of ["/api", "/api/auth"]) {
+            res.clearCookie("refreshToken", {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+                path: cookiePath
+            });
+        }
 
         res.status(200).json({
             message: "Sesión cerrada correctamente"

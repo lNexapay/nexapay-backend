@@ -13,7 +13,11 @@ const router = Router();
  *   get:
  *     summary: Saldos de la wallet (uno por moneda)
  *     tags: [Saldos]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
+ *       401:
+ *         description: Sin sesión o token inválido
  *       200:
  *         description: Lista de saldos
  */
@@ -25,6 +29,8 @@ router.get("/balances", getBalances);
  *   get:
  *     summary: Balance total convertido a una moneda base
  *     tags: [Saldos]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: base
@@ -33,6 +39,8 @@ router.get("/balances", getBalances);
  *           example: USD
  *         description: Moneda base (por defecto USD)
  *     responses:
+ *       401:
+ *         description: Sin sesión o token inválido
  *       200:
  *         description: Total y desglose por moneda
  *       400:
@@ -46,6 +54,8 @@ router.get("/balances/total", getTotalBalance);
  *   get:
  *     summary: Saldo de una moneda
  *     tags: [Saldos]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: currency
@@ -54,6 +64,8 @@ router.get("/balances/total", getTotalBalance);
  *           type: string
  *           example: COP
  *     responses:
+ *       401:
+ *         description: Sin sesión o token inválido
  *       200:
  *         description: Saldo de la moneda
  *       400:

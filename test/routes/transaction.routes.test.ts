@@ -1,3 +1,14 @@
+import { vi } from "vitest";
+
+// Simula una sesión válida: la verificación real (JWT + base de datos)
+// se prueba aparte en wallet.seguridad.test.ts.
+vi.mock("../../src/auth/auth.middleware", () => ({
+  authMiddleware: (req: any, res: any, next: any) => {
+    res.locals.userId = req.header("x-user-id") ?? "usuario-prueba";
+    next();
+  },
+}));
+
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import app from "../../src/app";

@@ -8,6 +8,11 @@ export const swaggerSpec = swaggerJsdoc({
       version: "1.0.0",
       description: "API de la billetera digital NexaPay",
     },
+    components: {
+      securitySchemes: {
+        bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
+      },
+    },
   },
   apis: ["./src/routes/*.ts"],
 });

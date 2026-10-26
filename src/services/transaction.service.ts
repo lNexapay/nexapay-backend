@@ -3,9 +3,15 @@ import { DEFAULT_WALLET_ID, walletRepository } from "../data/wallet.store";
 import { Transaction, WalletRepository } from "../types/wallet.types";
 import { AppError } from "../utils/appError";
 
+// Tope por operación: evita montos absurdos y desbordes de precisión.
+export const MAX_AMOUNT = 1_000_000_000_000;
+
 const validateAmount = (amount: unknown): number => {
   if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) {
     throw new AppError("El monto debe ser un número mayor a cero", 400);
+  }
+  if (amount > MAX_AMOUNT) {
+    throw new AppError("El monto excede el máximo permitido", 400);
   }
   return amount;
 };

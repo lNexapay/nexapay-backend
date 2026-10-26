@@ -8,7 +8,7 @@ API de **NexaPay**, una billetera digital multimoneda (USD, EUR, COP, ARS). Este
 |--------|--------|---------|
 | **Autenticación** | Funcional | Registro (crea también la billetera), login con JWT, refresh tokens, cierre de sesión, control de actividad y ruta protegida `/me` |
 | **Monedas y tasas** | Funcional | Catálogo de monedas y tasas de cambio de ejemplo |
-| **Saldos (wallet)** | En desarrollo | Lógica de saldos y conversión implementada sobre un almacén **en memoria** (`src/data/wallet.store.ts`); aún sin endpoints ni conexión a la base de datos |
+| **Wallet** (saldos, ingresos, conversiones, historial) | Funcional (demo) | Endpoints protegidos con sesión, una wallet de demostración por usuario, sobre un almacén **en memoria** (`src/data/wallet.store.ts`); aún sin conexión a la base de datos |
 | **Transacciones** | Pendiente | Archivos de estructura creados; la tabla ya existe en las migraciones |
 | **Documentación de la API** | Funcional | Swagger UI en `/api-docs` |
 
@@ -94,8 +94,14 @@ Documentación interactiva: **`http://localhost:3000/api-docs`**.
 | `GET` | `/api/auth/me` | Sí | Datos del usuario autenticado |
 | `GET` | `/api/currencies` | No | Monedas disponibles |
 | `GET` | `/api/rates` | No | Tasas de cambio |
+| `GET` | `/api/balances` | Sí | Saldos del usuario (uno por moneda) |
+| `GET` | `/api/balances/:currency` | Sí | Saldo de una moneda |
+| `GET` | `/api/balances/total` | Sí | Total convertido a una moneda base (`?base=USD`) |
+| `POST` | `/api/deposit` | Sí | Ingreso simulado |
+| `POST` | `/api/convert` | Sí | Conversión entre monedas |
+| `GET` | `/api/transactions` | Sí | Historial de operaciones |
 
-Las rutas protegidas esperan la cabecera `Authorization: Bearer <token>`. El refresh token viaja en una cookie `HttpOnly` (`refreshToken`), por eso el frontend debe hacer las peticiones con `credentials: "include"`.
+Las rutas protegidas (auth y wallet) esperan la cabecera `Authorization: Bearer <token>` **y** la cookie de sesión. El refresh token viaja en una cookie `HttpOnly` (`refreshToken`, ruta `/api`), por eso el frontend debe hacer las peticiones con `credentials: "include"`.
 
 > Los errores de wallet los gestiona el middleware `errorHandler` (`AppError`); los de auth responden hoy con su propio formato. Unificarlos queda pendiente.
 
@@ -157,6 +163,5 @@ No subas `.env`, llaves ni datos reales.
 ## Pendientes conocidos
 
 - Conectar la wallet (saldos y transacciones) a PostgreSQL y retirar el almacén en memoria.
-- Exponer los endpoints de saldos y transacciones.
 - Completar las pruebas marcadas como `todo` en `test/`.
 - Definir la licencia (el `package.json` declara `ISC` por defecto).

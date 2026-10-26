@@ -49,7 +49,7 @@ Montaje en `app.ts`:
 |---------|-----------|
 | `/api/auth` | Registro, login, refresh, logout, `/me`, actividad |
 | `/api/health` | Estado de la API |
-| `/api` | Rutas de wallet (monedas, tasas; saldos y transacciones por implementar) |
+| `/api` | Monedas y tasas (públicas); saldos, ingresos, conversiones e historial (requieren sesión) |
 | `/api-docs` | Swagger UI |
 
 ## Flujo de una petición
@@ -72,7 +72,7 @@ Dependencias de afuera hacia adentro: `routes → controllers → services → d
 
 ## Estado de la wallet
 
-La lógica de saldos y conversión existe sobre un almacén en memoria (`wallet.store.ts`). Las tablas `balances`, `transactions`, `contexts` y `context_budgets` ya existen en las migraciones, pero **aún no están conectadas**. El siguiente paso natural es crear repositorios que lean y escriban en PostgreSQL y retirar el almacén en memoria.
+La wallet está expuesta (saldos, ingresos, conversiones e historial) y ligada al usuario autenticado, pero sobre un almacén en memoria (`wallet.store.ts`): cada usuario recibe una wallet de demostración con saldos de ejemplo, y los datos se pierden al reiniciar. Las tablas `balances`, `transactions`, `contexts` y `context_budgets` ya existen en las migraciones, pero **aún no están conectadas**. El siguiente paso natural es crear repositorios que lean y escriban en PostgreSQL y retirar el almacén en memoria.
 
 ## Principios
 
