@@ -6,6 +6,7 @@ import {
   TotalBalance,
   WalletRepository,
 } from "../types/wallet.types";
+import { AppError } from "../utils/appError";
 
 const round2 = (v: number): number => Math.round(v * 100) / 100;
 
@@ -21,11 +22,11 @@ export const createBalanceService = (repo: WalletRepository) => ({
     walletId: string = DEFAULT_WALLET_ID
   ): Promise<Balance> {
     if (!currencyService.isSupported(currency)) {
-      throw new Error("Moneda no soportada");
+      throw new AppError("Moneda no soportada", 400);
     }
     const balance = await repo.getBalance(walletId, currency);
     if (!balance) {
-      throw new Error("La wallet no tiene saldo en esa moneda");
+      throw new AppError("La wallet no tiene saldo en esa moneda", 404);
     }
     return balance;
   },
@@ -36,7 +37,7 @@ export const createBalanceService = (repo: WalletRepository) => ({
     baseCurrency: CurrencyCode = "USD"
   ): Promise<TotalBalance> {
     if (!currencyService.isSupported(baseCurrency)) {
-      throw new Error("Moneda base no soportada");
+      throw new AppError("Moneda base no soportada", 400);
     }
 
     const balances = await repo.getBalances(walletId);
