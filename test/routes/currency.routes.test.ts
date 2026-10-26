@@ -13,6 +13,6 @@ describe("rutas de monedas", () => {
     const res = await request(app).get("/api/rates");
     expect(res.status).toBe(200);
     expect(res.body.base).toBe("USD");
-    expect(res.body.rates.COP).toBe(4000);
+    expect(res.body.rates.COP).toBe(3161.87);
   });
 });
