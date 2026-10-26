@@ -30,11 +30,20 @@ export const currencyService = {
     return round6(RATES_PER_USD[to] / RATES_PER_USD[from]);
   },
 
-  convert(amount: number, from: CurrencyCode, to: CurrencyCode) {
+    convert(amount: number, from: CurrencyCode, to: CurrencyCode) {
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new AppError("El monto debe ser mayor a cero", 400);
     }
-    const rate = this.getRate(from, to);
-    return { from, to, amount, rate, result: round2(amount * rate) };
+    if (!this.isSupported(from) || !this.isSupported(to)) {
+      throw new AppError("Moneda no soportada", 400);
+    }
+    const exactRate = RATES_PER_USD[to] / RATES_PER_USD[from];
+    return {
+      from,
+      to,
+      amount,
+      rate: round6(exactRate),       // solo para mostrar
+      result: round2(amount * exactRate),
+    };
   },
 };
