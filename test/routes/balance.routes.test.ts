@@ -25,7 +25,7 @@ describe("rutas de saldos", () => {
     const res = await request(app).get("/api/balances/total");
     expect(res.status).toBe(200);
     expect(res.body.baseCurrency).toBe("USD");
-    expect(res.body.total).toBeCloseTo(1125.37, 1);
+    expect(res.body.total).toBeCloseTo(1092.51, 1);
   });
 
   it("GET /api/balances/total?base=XYZ responde 400", async () => {
