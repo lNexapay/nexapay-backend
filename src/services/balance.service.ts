@@ -7,6 +7,7 @@ import {
   WalletRepository,
 } from "../types/wallet.types";
 import { AppError } from "../utils/appError";
+import { postgresWalletRepository } from "../data/postgres-wallet.repository";
 
 const round2 = (v: number): number => Math.round(v * 100) / 100;
 
@@ -62,4 +63,12 @@ export const createBalanceService = (repo: WalletRepository) => ({
 });
 
 // Instancia lista para usar con el repositorio en memoria.
-export const balanceService = createBalanceService(walletRepository);
+/**
+ * En las pruebas usamos datos simulados.
+ * En los demás entornos usamos PostgreSQL.
+ */
+export const balanceService = createBalanceService(
+  process.env.NODE_ENV === "test"
+    ? walletRepository
+    : postgresWalletRepository
+);

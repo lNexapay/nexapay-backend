@@ -2,7 +2,7 @@
 /**
  * Servicio de autenticación de NEXAPAY.
  * Gestiona el registro de usuarios, protege contraseñas
- * y crea automáticamente su billetera en PostgreSQL.
+ * y crea automáticamente su billetera con balances en PostgreSQL.
  */
 
 import bcrypt from "bcrypt";
@@ -10,6 +10,7 @@ import pool from "../config/database";
 import jwt from "jsonwebtoken";
 import { createRefreshSession } from "./refresh-token.service";
 
+// Registrar un nuevo usuario.
 export const registerUser = async (
     name: string,
     email: string,
@@ -43,24 +44,44 @@ export const registerUser = async (
 
         const user = result.rows[0];
 
-        // Crear la billetera del usuario.
-        await client.query(
-            "INSERT INTO wallets (user_id) VALUES ($1)",
+        // Crear la billetera y obtener su ID real.
+        const walletResult = await client.query(
+            `INSERT INTO wallets (user_id)
+       VALUES ($1)
+       RETURNING id`,
             [user.id]
         );
 
+        const walletId = walletResult.rows[0].id;
+
+        // Inicializar las cuatro monedas con saldo cero.
+        await client.query(
+            `INSERT INTO balances (wallet_id, currency_code, amount)
+       VALUES
+         ($1, 'ARS', 0),
+         ($1, 'USD', 0),
+         ($1, 'EUR', 0),
+         ($1, 'COP', 0)`,
+            [walletId]
+        );
+
+        // Confirmar todo junto: usuario, billetera y balances.
         await client.query("COMMIT");
 
         return user;
 
     } catch (error) {
+        // Si algo falla, revertir todos los cambios.
         await client.query("ROLLBACK");
         throw error;
 
     } finally {
+        // Liberar la conexión al pool.
         client.release();
     }
 };
+
+// Iniciar sesión.
 export const loginUser = async (
     email: string,
     password: string
@@ -75,15 +96,11 @@ export const loginUser = async (
 
     const user = result.rows[0];
 
-    // Comprobar si el usuario existe.
     if (!user) {
         throw new Error("Credenciales incorrectas");
     }
 
-    // Crear una sesión de renovación en PostgreSQL.
-    const refreshToken = await createRefreshSession(user.id);
-
-    // Comparar la contraseña con el hash almacenado.
+    // Comprobar la contraseña antes de crear una sesión.
     const validPassword = await bcrypt.compare(
         password,
         user.password_hash
@@ -107,6 +124,10 @@ export const loginUser = async (
         { expiresIn: "15m" }
     );
 
+    // Crear la sesión de renovación solamente después
+    // de verificar las credenciales.
+    const refreshToken = await createRefreshSession(user.id);
+
     return {
         token,
         refreshToken,
@@ -118,11 +139,12 @@ export const loginUser = async (
     };
 };
 
+// Obtener un usuario mediante su ID.
 export const getUserById = async (userId: string) => {
     const result = await pool.query(
         `SELECT id, name, email, created_at
-         FROM users
-         WHERE id = $1`,
+     FROM users
+     WHERE id = $1`,
         [userId]
     );
 

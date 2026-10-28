@@ -9,6 +9,20 @@ vi.mock("../../src/auth/auth.middleware", () => ({
   },
 }));
 
+/**
+ * Simula la búsqueda de la billetera durante los tests.
+ *
+ * En producción getWalletId consulta PostgreSQL.
+ * En estas pruebas utilizamos el repositorio en memoria,
+ * por eso devolvemos directamente el ID simulado.
+ */
+vi.mock("../../src/utils/currentUser", () => ({
+  getWalletId: async (res: any) => {
+    return res.locals.userId;
+  },
+}));
+
+
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import app from "../../src/app";
