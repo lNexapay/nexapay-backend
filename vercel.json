@@ -9,7 +9,7 @@
     "routes": [
         {
             "src": "/api/welcome-email",
-            "dest": "api/welcome-email.ts"
+            "dest": "/api/welcome-email.ts"
         }
     ]
 }
