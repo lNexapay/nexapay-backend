@@ -13,6 +13,7 @@ import {
     revokeRefreshToken,
     updateSessionActivity
 } from "./refresh-token.service";
+import { sendWelcomeEmail } from "../services/welcome-email.service";
 
 export const register = async (req: Request, res: Response) => {
     try {
@@ -34,16 +35,22 @@ export const register = async (req: Request, res: Response) => {
         }
 
         // Llamar al servicio para crear el usuario y su billetera.
+        // Crear el usuario y su billetera en PostgreSQL.
         const user = await registerUser(
             name.trim(),
             email.trim().toLowerCase(),
             password
         );
 
+        // Responder al frontend sin esperar el envío del correo.
         res.status(201).json({
             message: "Usuario registrado correctamente",
             user
         });
+
+        // Solicitar el correo de bienvenida mediante nuestra Vercel Function.
+        // Si el servicio falla, no afecta al registro ya realizado.
+        void sendWelcomeEmail(user.name, user.email);
 
     } catch (error) {
         console.error("Error al registrar usuario:", error);
