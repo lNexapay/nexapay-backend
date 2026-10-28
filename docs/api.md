@@ -15,12 +15,18 @@ Este documento tiene dos partes: **cómo está hoy** la API y **hacia dónde que
 | `GET` | `/api/auth/me` | Bearer + cookie | Datos del usuario autenticado | Listo |
 | `GET` | `/api/currencies` | No | Monedas disponibles | Listo |
 | `GET` | `/api/rates` | No | Tasas de cambio | Listo (datos de ejemplo) |
-| — | saldos (`balance`) | Sí | Consulta de saldos de la wallet | Por implementar |
-| — | transacciones (`transaction`) | Sí | Historial y operaciones | Por implementar |
+| `GET` | `/api/balances` | Bearer + cookie | Saldos del usuario (uno por moneda) | Listo (en memoria) |
+| `GET` | `/api/balances/:currency` | Bearer + cookie | Saldo de una moneda | Listo (en memoria) |
+| `GET` | `/api/balances/total?base=USD` | Bearer + cookie | Total convertido a una moneda base | Listo (en memoria) |
+| `POST` | `/api/deposit` | Bearer + cookie | Ingreso simulado `{ currency, amount, description? }` | Listo (en memoria) |
+| `POST` | `/api/convert` | Bearer + cookie | Conversión `{ from, to, amount, description? }` | Listo (en memoria) |
+| `GET` | `/api/transactions?limit=20` | Bearer + cookie | Historial del usuario, más recientes primero | Listo (en memoria) |
+
+Las rutas de wallet están ligadas al usuario autenticado: cada usuario tiene su propia wallet de demostración (con saldos de ejemplo) y no ve la de otros. Los montos tienen un máximo por operación de 1.000.000.000.000. Los saldos viven en memoria y se reinician al reiniciar el servidor, hasta conectar PostgreSQL.
 
 ### Autenticación en pocas líneas
 
-- Las rutas protegidas necesitan **dos cosas**: la cabecera `Authorization: Bearer <token>` **y** la cookie `refreshToken` (sesión activa).
+- Las rutas protegidas (incluidas las de wallet) necesitan **dos cosas**: la cabecera `Authorization: Bearer <token>` **y** la cookie `refreshToken` (sesión activa).
 - Por eso el frontend debe enviar siempre `credentials: "include"` en `fetch`.
 - El access token dura 15 minutos; se renueva con `/api/auth/refresh`.
 

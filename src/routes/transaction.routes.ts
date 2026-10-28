@@ -13,6 +13,8 @@ const router = Router();
  *   post:
  *     summary: Ingresa dinero simulado en una moneda
  *     tags: [Operaciones]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -31,6 +33,8 @@ const router = Router();
  *                 type: string
  *                 example: Depósito automático
  *     responses:
+ *       401:
+ *         description: Sin sesión o token inválido
  *       201:
  *         description: Ingreso registrado
  *       400:
@@ -44,6 +48,8 @@ router.post("/deposit", deposit);
  *   post:
  *     summary: Convierte dinero de una moneda a otra
  *     tags: [Operaciones]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -64,6 +70,8 @@ router.post("/deposit", deposit);
  *               description:
  *                 type: string
  *     responses:
+ *       401:
+ *         description: Sin sesión o token inválido
  *       201:
  *         description: Conversión realizada
  *       400:
@@ -77,6 +85,8 @@ router.post("/convert", convert);
  *   get:
  *     summary: Historial de operaciones (las más recientes primero)
  *     tags: [Operaciones]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: limit
@@ -85,6 +95,8 @@ router.post("/convert", convert);
  *           example: 20
  *         description: Máximo de operaciones a devolver (hasta 100)
  *     responses:
+ *       401:
+ *         description: Sin sesión o token inválido
  *       200:
  *         description: Lista de operaciones
  */

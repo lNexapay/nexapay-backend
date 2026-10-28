@@ -24,6 +24,7 @@ const round2 = (value: number): number => Math.round(value * 100) / 100;
 export class InMemoryWalletRepository implements WalletRepository {
   private balances = new Map<string, Balance>();
   private transactions: Transaction[] = [];
+  private seeded = new Set<string>();
 
   constructor() {
     this.reset();
@@ -37,11 +38,16 @@ export class InMemoryWalletRepository implements WalletRepository {
   reset(): void {
     this.balances.clear();
     this.transactions = [];
+    this.seeded.clear();
+    this.seedWallet(DEFAULT_WALLET_ID);
+  }
 
+  // Cada wallet nueva (una por usuario) arranca con los saldos de ejemplo.
+  private seedWallet(walletId: string): void {
     for (const { code } of SUPPORTED_CURRENCIES) {
-      this.balances.set(this.key(DEFAULT_WALLET_ID, code), {
+      this.balances.set(this.key(walletId, code), {
         id: randomUUID(),
-        walletId: DEFAULT_WALLET_ID,
+        walletId,
         currencyCode: code,
         amount: INITIAL_AMOUNTS[code] ?? 0,
         updatedAt: new Date(),
@@ -49,7 +55,21 @@ export class InMemoryWalletRepository implements WalletRepository {
     }
   }
 
+  private ensureWallet(walletId: string): void {
+    if (!this.seeded.has(walletId) && !this.hasBalances(walletId)) {
+      this.seedWallet(walletId);
+    }
+    this.seeded.add(walletId);
+  }
+
+  private hasBalances(walletId: string): boolean {
+    return SUPPORTED_CURRENCIES.some((c) =>
+      this.balances.has(this.key(walletId, c.code))
+    );
+  }
+
   async getBalances(walletId: string): Promise<Balance[]> {
+    this.ensureWallet(walletId);
     return [...this.balances.values()].filter((b) => b.walletId === walletId);
   }
 
@@ -57,6 +77,7 @@ export class InMemoryWalletRepository implements WalletRepository {
     walletId: string,
     currency: CurrencyCode
   ): Promise<Balance | null> {
+    this.ensureWallet(walletId);
     return this.balances.get(this.key(walletId, currency)) ?? null;
   }
 
@@ -65,6 +86,7 @@ export class InMemoryWalletRepository implements WalletRepository {
     currency: CurrencyCode,
     amount: number
   ): Promise<Balance> {
+    this.ensureWallet(walletId);
     const existing = this.balances.get(this.key(walletId, currency));
 
     const updated: Balance = {

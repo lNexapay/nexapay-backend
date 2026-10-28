@@ -98,7 +98,7 @@ Permite registrar un usuario nuevo. El backend crea automáticamente su billeter
 }
 ```
 
-Además, el backend envía una cookie `refreshToken` con la opción `HttpOnly`.
+Además, el backend envía una cookie `refreshToken` con la opción `HttpOnly` y ruta `/api`, de modo que el navegador la envía también a las rutas de wallet (`/api/balances`, `/api/deposit`, etc.), que exigen sesión activa.
 
 ### Posibles errores
 
