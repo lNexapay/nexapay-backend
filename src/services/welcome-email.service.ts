@@ -1,47 +1,87 @@
 
+import {
+    SESClient,
+    SendEmailCommand,
+} from "@aws-sdk/client-ses";
+
 /**
  * Servicio de correos de bienvenida de NEXAPAY.
  *
- * Solicita a nuestra Vercel Function que envíe un correo
- * mediante AWS SES, sin exponer credenciales de AWS
- * dentro del backend de Railway.
+ * Envía correos directamente desde Railway
+ * utilizando Amazon Simple Email Service (SES).
+ *
+ * Las credenciales de AWS se obtienen automáticamente
+ * de las variables de entorno.
  */
 
+const ses = new SESClient({
+    region: process.env.AWS_REGION || "us-east-1",
+});
+
+/**
+ * Envía el correo de bienvenida a un usuario
+ * después de registrarse en NEXAPAY.
+ *
+ * Si el envío falla, no interrumpe el registro.
+ */
 export const sendWelcomeEmail = async (
     name: string,
     email: string
 ): Promise<void> => {
-    // Dirección de la función desplegada en Vercel.
-    const functionUrl = process.env.WELCOME_EMAIL_FUNCTION_URL;
+    const sender = process.env.SES_FROM_EMAIL;
 
-    // Clave privada compartida entre Railway y Vercel.
-    const serviceSecret = process.env.EMAIL_SERVICE_SECRET;
-
-    // Si todavía no configuramos el servicio, no interrumpimos el registro.
-    if (!functionUrl || !serviceSecret) {
-        console.warn("Servicio de correo de bienvenida no configurado");
+    // Verificamos que exista un remitente configurado.
+    if (!sender) {
+        console.warn(
+            "Servicio de correo de bienvenida no configurado: falta SES_FROM_EMAIL"
+        );
         return;
     }
 
     try {
-        // Enviar los datos del usuario a la Vercel Function.
-        const response = await fetch(functionUrl, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${serviceSecret}`
+        const command = new SendEmailCommand({
+            Source: sender,
+            Destination: {
+                ToAddresses: [email],
             },
-            body: JSON.stringify({ name, email }),
-            signal: AbortSignal.timeout(5000)
+            Message: {
+                Subject: {
+                    Data: "¡Bienvenido a NEXAPAY!",
+                    Charset: "UTF-8",
+                },
+                Body: {
+                    Text: {
+                        Data: `Hola ${name}:
+
+¡Bienvenido a NEXAPAY!
+
+Tu cuenta fue creada correctamente.
+
+Desde ahora podés acceder a tu billetera digital y explorar las funcionalidades de nuestra plataforma.
+
+Gracias por formar parte de NEXAPAY.
+
+El equipo de NEXAPAY`,
+                        Charset: "UTF-8",
+                    },
+                },
+            },
         });
 
-        if (!response.ok) {
-            console.error(
-                `Error del servicio de correo: HTTP ${response.status}`
-            );
-        }
+        const result = await ses.send(command, {
+            abortSignal: AbortSignal.timeout(5000),
+        });
+
+        console.log(
+            "Correo de bienvenida aceptado por AWS SES:",
+            result.MessageId
+        );
     } catch (error) {
-        // Un problema con SES o Vercel no debe impedir crear la cuenta.
-        console.error("No se pudo solicitar el correo de bienvenida:", error);
+        // Un error de AWS SES no debe impedir
+        // que el usuario complete su registro.
+        console.error(
+            "No se pudo enviar el correo de bienvenida mediante AWS SES:",
+            error
+        );
     }
 };
