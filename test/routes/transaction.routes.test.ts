@@ -9,6 +9,12 @@ vi.mock("../../src/auth/auth.middleware", () => ({
   },
 }));
 
+// Simula la búsqueda del destinatario (en producción consulta la tabla users).
+vi.mock("../../src/services/recipient.service", () => ({
+  findWalletIdByRecipient: async (recipient: string) =>
+    recipient === "juan@nexa.io" ? "usuario-destino" : null,
+}));
+
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import app from "../../src/app";
@@ -36,5 +42,52 @@ describe("rutas de operaciones", () => {
     const res = await request(app).get("/api/transactions");
     expect(res.status).toBe(200);
     expect(res.body.length).toBeGreaterThanOrEqual(2);
+  });
+
+  describe("transferencias", () => {
+    it("POST /api/transfers mueve el dinero y deja historial en ambos lados", async () => {
+      const res = await request(app)
+        .post("/api/transfers")
+        .set("x-user-id", "usuario-emisor")
+        .send({ toAlias: "Juan@Nexa.io", currency: "USD", amount: 40 });
+      expect(res.status).toBe(201);
+      expect(res.body.type).toBe("transfer_out");
+
+      const enviada = await request(app)
+        .get("/api/transactions")
+        .set("x-user-id", "usuario-emisor");
+      expect(enviada.body[0].type).toBe("transfer_out");
+
+      const recibida = await request(app)
+        .get("/api/transactions")
+        .set("x-user-id", "usuario-destino");
+      expect(recibida.body[0].type).toBe("transfer_in");
+    });
+
+    it("POST /api/transfers con destinatario inexistente responde 404", async () => {
+      const res = await request(app)
+        .post("/api/transfers")
+        .send({ toAlias: "nadie@nexa.io", currency: "USD", amount: 10 });
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe("Destinatario no encontrado");
+    });
+
+    it("POST /api/transfers a uno mismo responde 400", async () => {
+      const res = await request(app)
+        .post("/api/transfers")
+        .set("x-user-id", "usuario-destino")
+        .send({ toAlias: "juan@nexa.io", currency: "USD", amount: 10 });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe("No puedes transferirte a ti mismo");
+    });
+
+    it("POST /api/transfers sin saldo suficiente responde 400", async () => {
+      const res = await request(app)
+        .post("/api/transfers")
+        .set("x-user-id", "usuario-emisor-2")
+        .send({ toAlias: "juan@nexa.io", currency: "USD", amount: 999999 });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe("Saldo insuficiente");
+    });
   });
 });

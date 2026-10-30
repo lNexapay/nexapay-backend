@@ -2,6 +2,7 @@ import { currencyService } from "./currency.service";
 import { DEFAULT_WALLET_ID, walletRepository } from "../data/wallet.store";
 import { Transaction, WalletRepository } from "../types/wallet.types";
 import { AppError } from "../utils/appError";
+import { findWalletIdByRecipient } from "./recipient.service";
 
 // Tope por operación: evita montos absurdos y desbordes de precisión.
 export const MAX_AMOUNT = 1_000_000_000_000;
@@ -16,7 +17,13 @@ const validateAmount = (amount: unknown): number => {
   return amount;
 };
 
-export const createTransactionService = (repo: WalletRepository) => ({
+// Dado el alias que escribió el usuario, devuelve el id de wallet del destinatario.
+export type RecipientResolver = (alias: string) => Promise<string | null>;
+
+export const createTransactionService = (
+  repo: WalletRepository,
+  resolveRecipient: RecipientResolver = async () => null
+) => ({
   // Ingreso: suma dinero a una moneda.
   async deposit(
     currency: string,
@@ -85,6 +92,73 @@ export const createTransactionService = (repo: WalletRepository) => ({
     });
   },
 
+  // Transferencia: mueve dinero de la wallet emisora a la del destinatario.
+  async transfer(
+    toAlias: unknown,
+    currency: string,
+    amount: unknown,
+    description?: string,
+    fromWalletId: string = DEFAULT_WALLET_ID
+  ): Promise<Transaction> {
+    if (typeof toAlias !== "string" || !toAlias.trim()) {
+      throw new AppError("El alias del destinatario es obligatorio", 400);
+    }
+    if (!currencyService.isSupported(currency)) {
+      throw new AppError("Moneda no soportada", 400);
+    }
+    const value = validateAmount(amount);
+    const alias = toAlias.trim().toLowerCase();
+
+    // Todo dentro de una transacción: si algo falla, no queda nada a medias.
+    return repo.withTransaction(async (tx) => {
+      const toWalletId = await resolveRecipient(alias);
+      if (!toWalletId) {
+        throw new AppError("Destinatario no encontrado", 404);
+      }
+      if (toWalletId === fromWalletId) {
+        throw new AppError("No puedes transferirte a ti mismo", 400);
+      }
+
+      const source = await tx.getBalance(fromWalletId, currency);
+      if (!source || source.amount < value) {
+        throw new AppError("Saldo insuficiente", 400);
+      }
+      const target = await tx.getBalance(toWalletId, currency);
+
+      await tx.setBalance(fromWalletId, currency, source.amount - value);
+      await tx.setBalance(toWalletId, currency, (target?.amount ?? 0) + value);
+
+      // Una fila para cada lado: cada wallet ve su propio movimiento.
+      const sent = await tx.saveTransaction({
+        walletId: fromWalletId,
+        counterpartyWalletId: toWalletId,
+        type: "transfer_out",
+        currencyFrom: currency,
+        currencyTo: currency,
+        amountFrom: value,
+        amountTo: value,
+        rateUsed: 1,
+        status: "completed",
+        description: description ?? `Transferencia a ${alias}`,
+      });
+
+      await tx.saveTransaction({
+        walletId: toWalletId,
+        counterpartyWalletId: fromWalletId,
+        type: "transfer_in",
+        currencyFrom: currency,
+        currencyTo: currency,
+        amountFrom: value,
+        amountTo: value,
+        rateUsed: 1,
+        status: "completed",
+        description: description ?? "Transferencia recibida",
+      });
+
+      return sent;
+    });
+  },
+
   // Historial: las operaciones más recientes primero.
   async getHistory(
     limit: number = 20,
@@ -94,4 +168,8 @@ export const createTransactionService = (repo: WalletRepository) => ({
   },
 });
 
-export const transactionService = createTransactionService(walletRepository);
+// Mientras no haya un resolvedor real, ninguna transferencia encuentra destinatario.
+export const transactionService = createTransactionService(
+  walletRepository,
+  findWalletIdByRecipient
+);
