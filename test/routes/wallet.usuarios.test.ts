@@ -10,6 +10,13 @@ vi.mock("../../src/auth/auth.middleware", () => ({
   },
 }));
 
+vi.mock("../../src/utils/currentUser", () => ({
+  getWalletId: async (res: any) => {
+    return res.locals.userId;
+  },
+}));
+
+
 const como = (usuario: string) => ({ "x-user-id": usuario });
 
 describe("wallet por usuario", () => {
