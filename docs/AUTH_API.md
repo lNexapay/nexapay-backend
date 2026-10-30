@@ -3,39 +3,34 @@
 **Proyecto:** NEXAPAY Global Student  
 **Backend:** Node.js + Express + TypeScript + PostgreSQL  
 **Frontend:** React + TypeScript + Vite  
-**Estado:** Endpoints implementados y probados localmente.
+**Estado:** Autenticación integrada con el frontend. La incorporación de `account_number` al servicio está implementada y probada localmente; su disponibilidad pública depende de desplegar la versión actualizada del backend.
 
 ## 1. Configuración general
 
-URL del backend en desarrollo:
+**Backend local:** `http://localhost:3000`  
+**Prefijo de autenticación:** `/api/auth`  
+**Frontend local:** `http://localhost:5173`
 
-```text
-http://localhost:3000
-```
-
-Prefijo de autenticación:
-
-```text
-/api/auth
-```
-
-Todas las peticiones que envíen un cuerpo JSON deben utilizar:
+Las solicitudes con cuerpo JSON deben enviar:
 
 ```http
 Content-Type: application/json
 ```
 
-El backend permite solicitudes desde `http://localhost:5173`.
+Las solicitudes que utilizan la sesión deben incluir `credentials: "include"` para enviar y recibir la cookie de renovación.
 
-**Importante:** las peticiones relacionadas con sesiones deben incluir `credentials: "include"` para enviar y recibir cookies.
+### Entornos desplegados
 
----
+- **Frontend Vercel:** `https://nexapay-frontend-seven.vercel.app`
+- **Backend Railway:** `https://nexapay-backend-production-94be.up.railway.app`
+
+En producción, el frontend usa rutas relativas (`/api/...`) y un *rewrite* de Vercel que redirige las solicitudes al backend de Railway. Esto evita depender de cookies de terceros entre los dominios de Vercel y Railway.
 
 ## 2. Registro de usuarios
 
-**POST** `/api/auth/register`
+**`POST /api/auth/register`**
 
-Permite registrar un usuario nuevo. El backend crea automáticamente su billetera asociada.
+Registra un usuario y crea, en una misma transacción de PostgreSQL, su billetera y cuatro balances iniciales: ARS, USD, EUR y COP.
 
 ### Body
 
@@ -47,7 +42,7 @@ Permite registrar un usuario nuevo. El backend crea automáticamente su billeter
 }
 ```
 
-### Respuesta exitosa — 201
+### Respuesta exitosa — `201`
 
 ```json
 {
@@ -56,24 +51,46 @@ Permite registrar un usuario nuevo. El backend crea automáticamente su billeter
     "id": "uuid-del-usuario",
     "name": "Usuario Prueba",
     "email": "prueba@nexapay.com",
-    "created_at": "2026-10-24T12:00:00.000Z"
+    "account_number": "58301742",
+    "created_at": "2026-10-30T12:00:00.000Z"
   }
 }
 ```
 
+`account_number` se genera automáticamente en PostgreSQL. El ejemplo anterior es ilustrativo: el número real es aleatorio.
+
 ### Posibles errores
 
-- `400`: datos inválidos o contraseña de menos de 8 caracteres.
-- `409`: el email ya está registrado.
-- `500`: error interno del servidor.
+- `400`: datos inválidos o contraseña de menos de ocho caracteres.
+- `409`: email ya registrado.
+- `500`: error interno del servidor, incluido un fallo excepcional tras agotar los reintentos de generación del número de cuenta.
 
-**Nota:** el registro no inicia sesión automáticamente. Después del registro, el frontend puede redirigir al login.
+El registro **no inicia sesión automáticamente**. Después del registro, el frontend puede redirigir al login. Tras confirmar el registro, el backend solicita el envío del correo de bienvenida sin bloquear la respuesta HTTP.
 
----
+## 3. Número de cuenta NEXAPAY
 
-## 3. Inicio de sesión
+Cada usuario dispone de **un único número de cuenta interno de ocho dígitos**, compartido por sus balances en las cuatro monedas.
 
-**POST** `/api/auth/login`
+| Propiedad | Implementación |
+|---|---|
+| Campo | `users.account_number` |
+| Tipo | `VARCHAR(8)` |
+| Formato | Ocho dígitos (`^[0-9]{8}$`) |
+| Generación | Aleatoria, mediante función de PostgreSQL |
+| Unicidad | Restricción `UNIQUE` |
+| Obligatoriedad | `NOT NULL` |
+| Registro | Valor generado por defecto en la base de datos |
+| Colisiones | El servicio de registro reintenta hasta cinco veces si falla la restricción de unicidad de la cuenta |
+
+La migración `011_add_account_number_to_users.up.sql` asigna números a los usuarios existentes y habilita la generación para los nuevos.
+
+El número de cuenta **no reemplaza** el UUID de `users.id`, no es una contraseña y no autoriza operaciones por sí solo. Es un identificador interno de NEXAPAY para futuras transferencias entre usuarios; **no es un CBU ni un CVU oficial**.
+
+**Integración frontend:** mostrar `account_number` como texto, no convertirlo a `number`. Puede presentarse visualmente como `5830 1742`, pero para copiarlo o enviarlo a la API conviene utilizar los ocho dígitos sin espacios. El backend ya incluye el campo en las respuestas del registro, login y `/me` en el código actualizado. Su disponibilidad en Railway requiere desplegar esa versión.
+
+## 4. Inicio de sesión
+
+**`POST /api/auth/login`**
 
 ### Body
 
@@ -84,7 +101,7 @@ Permite registrar un usuario nuevo. El backend crea automáticamente su billeter
 }
 ```
 
-### Respuesta exitosa — 200
+### Respuesta exitosa — `200`
 
 ```json
 {
@@ -93,56 +110,46 @@ Permite registrar un usuario nuevo. El backend crea automáticamente su billeter
   "user": {
     "id": "uuid-del-usuario",
     "name": "Usuario Prueba",
-    "email": "prueba@nexapay.com"
+    "email": "prueba@nexapay.com",
+    "account_number": "58301742"
   }
 }
 ```
 
-Además, el backend envía una cookie `refreshToken` con la opción `HttpOnly` y ruta `/api`, de modo que el navegador la envía también a las rutas de wallet (`/api/balances`, `/api/deposit`, etc.), que exigen sesión activa.
+El backend también establece una cookie `refreshToken` con `HttpOnly` y ruta `/api`, necesaria para renovar la sesión y para las rutas protegidas que verifican la sesión activa.
 
 ### Posibles errores
 
-- `400`: faltan credenciales.
+- `400`: credenciales ausentes o inválidas.
 - `401`: email o contraseña incorrectos.
 - `500`: error interno.
 
 ### Ejemplo desde React
 
 ```ts
-const response = await fetch(
-  "http://localhost:3000/api/auth/login",
-  {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    credentials: "include",
-    body: JSON.stringify({
-      email,
-      password
-    })
-  }
-);
+const response = await fetch("/api/auth/login", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  credentials: "include",
+  body: JSON.stringify({ email, password })
+});
 
 const data = await response.json();
+if (!response.ok) throw new Error(data.message);
 
-if (!response.ok) {
-  throw new Error(data.message);
-}
-
-// Guardar el access token en el estado de la aplicación.
 const accessToken = data.token;
+const accountNumber = data.user.account_number;
 ```
 
-**Importante:** no hace falta guardar manualmente el refresh token. El navegador administra la cookie `HttpOnly`.
+El ejemplo utiliza la ruta relativa de producción. En desarrollo local, el cliente HTTP puede usar la URL del backend configurada mediante `VITE_API_URL`.
 
----
+El refresh token **no se almacena manualmente**: el navegador administra la cookie `HttpOnly`.
 
-## 4. Obtener usuario autenticado
+## 5. Obtener el usuario autenticado
 
-**GET** `/api/auth/me`
+**`GET /api/auth/me`**
 
-Es una ruta protegida. Requiere un access token válido y la cookie de una sesión activa.
+Ruta protegida. Requiere JWT válido y la cookie correspondiente a una sesión activa, de acuerdo con el middleware de autenticación.
 
 ### Headers
 
@@ -150,7 +157,7 @@ Es una ruta protegida. Requiere un access token válido y la cookie de una sesi�
 Authorization: Bearer JWT_ACCESS_TOKEN
 ```
 
-### Respuesta exitosa — 200
+### Respuesta exitosa — `200`
 
 ```json
 {
@@ -158,7 +165,8 @@ Authorization: Bearer JWT_ACCESS_TOKEN
     "id": "uuid-del-usuario",
     "name": "Usuario Prueba",
     "email": "prueba@nexapay.com",
-    "created_at": "2026-10-24T12:00:00.000Z"
+    "account_number": "58301742",
+    "created_at": "2026-10-30T12:00:00.000Z"
   }
 }
 ```
@@ -166,55 +174,48 @@ Authorization: Bearer JWT_ACCESS_TOKEN
 ### Ejemplo desde React
 
 ```ts
-const response = await fetch(
-  "http://localhost:3000/api/auth/me",
-  {
-    headers: {
-      Authorization: `Bearer ${accessToken}`
-    },
-    credentials: "include"
-  }
-);
+const response = await fetch("/api/auth/me", {
+  headers: { Authorization: `Bearer ${accessToken}` },
+  credentials: "include"
+});
+
+const data = await response.json();
+if (!response.ok) throw new Error(data.message);
+
+const user = data.user;
 ```
 
 ### Errores habituales
 
 - `401`: JWT ausente, inválido o vencido; sesión revocada o inactiva.
 - `404`: usuario no encontrado.
+- `500`: error interno.
 
----
+Este endpoint permite recuperar el número de cuenta al recargar el dashboard, una vez renovado el JWT si es necesario.
 
-## 5. Renovar el access token
+## 6. Renovar el access token
 
-**POST** `/api/auth/refresh`
+**`POST /api/auth/refresh`**
 
-Permite generar un nuevo JWT sin volver a ingresar la contraseña.
-
-No necesita body ni header `Authorization`. Utiliza la cookie `refreshToken`.
+Genera un JWT nuevo sin pedir nuevamente la contraseña. No requiere body ni header `Authorization`: utiliza la cookie `refreshToken`.
 
 ### Ejemplo desde React
 
 ```ts
-const response = await fetch(
-  "http://localhost:3000/api/auth/refresh",
-  {
-    method: "POST",
-    credentials: "include"
-  }
-);
+const response = await fetch("/api/auth/refresh", {
+  method: "POST",
+  credentials: "include"
+});
 
 if (!response.ok) {
-  // La sesión no puede renovarse.
-  // Solicitar nuevamente el login.
+  // La sesión no puede renovarse: solicitar login.
 }
 
 const data = await response.json();
-
-// Reemplazar el access token anterior.
 const newAccessToken = data.token;
 ```
 
-### Respuesta exitosa — 200
+### Respuesta exitosa — `200`
 
 ```json
 {
@@ -222,38 +223,31 @@ const newAccessToken = data.token;
 }
 ```
 
-### Error — 401
+### Error — `401`
 
-La sesión no existe, está vencida, fue revocada o superó el límite de inactividad.
+La sesión no existe, está vencida, fue revocada o excedió el límite de inactividad.
 
-**Comportamiento:** el refresh token original conserva su vencimiento. Renovar el JWT no extiende las 24 horas de sesión máxima.
+**Importante:** `/refresh` no devuelve el objeto `user` ni `account_number`. Después de recuperar el JWT, consultar `/me` si se necesitan los datos del usuario.
 
----
+Renovar el JWT no extiende automáticamente el vencimiento máximo de 24 horas de la sesión.
 
-## 6. Registrar actividad del usuario
+## 7. Registrar actividad del usuario
 
-**POST** `/api/auth/activity`
+**`POST /api/auth/activity`**
 
-Actualiza la última actividad de la sesión en PostgreSQL.
-
-Requiere un JWT válido y la cookie `refreshToken`.
+Actualiza la última actividad de la sesión en PostgreSQL. Requiere JWT válido y cookie `refreshToken`.
 
 ### Ejemplo desde React
 
 ```ts
-const response = await fetch(
-  "http://localhost:3000/api/auth/activity",
-  {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`
-    },
-    credentials: "include"
-  }
-);
+const response = await fetch("/api/auth/activity", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${accessToken}` },
+  credentials: "include"
+});
 ```
 
-### Respuesta exitosa — 200
+### Respuesta exitosa — `200`
 
 ```json
 {
@@ -261,42 +255,31 @@ const response = await fetch(
 }
 ```
 
-### Error — 401
+### Error — `401`
 
-La sesión ya venció o superó los 15 minutos de inactividad.
+La sesión venció, fue revocada o superó el límite de inactividad.
 
-### Recomendación para React
+**Recomendación:** registrar interacciones reales (clics, escritura, navegación) y limitar el envío de `/activity` a una petición por minuto mientras haya actividad. No generar actividad artificial cuando el usuario está inactivo.
 
-Detectar interacciones reales del usuario, como clics, escritura o navegación.
+## 8. Cerrar sesión
 
-Para evitar peticiones excesivas, enviar `/activity` como máximo una vez por minuto mientras haya actividad.
+**`POST /api/auth/logout`**
 
-**No enviar peticiones automáticamente si el usuario está inactivo**, porque se perdería el propósito del bloqueo.
-
----
-
-## 7. Cerrar sesión
-
-**POST** `/api/auth/logout`
-
-Revoca el refresh token en PostgreSQL y elimina su cookie.
+Revoca el refresh token en PostgreSQL y elimina la cookie de sesión.
 
 ### Ejemplo desde React
 
 ```ts
-await fetch(
-  "http://localhost:3000/api/auth/logout",
-  {
-    method: "POST",
-    credentials: "include"
-  }
-);
+await fetch("/api/auth/logout", {
+  method: "POST",
+  credentials: "include"
+});
 
-// Limpiar el access token del estado de React.
-// Redirigir a la pantalla de login.
+// Eliminar el access token del estado de React.
+// Redirigir al login.
 ```
 
-### Respuesta exitosa — 200
+### Respuesta exitosa — `200`
 
 ```json
 {
@@ -304,61 +287,67 @@ await fetch(
 }
 ```
 
-El frontend también debe eliminar el JWT que conserva en memoria.
+El frontend también debe limpiar el JWT conservado en memoria.
 
----
-
-## 8. Política de sesiones
+## 9. Política de sesiones
 
 | Característica | Configuración |
 |---|---|
 | Access token | 15 minutos |
 | Refresh token | 24 horas |
 | Inactividad máxima | 15 minutos |
-| Renovación de JWT | Mediante `/refresh` |
+| Renovación del JWT | `/api/auth/refresh` |
+| Registro de actividad | `/api/auth/activity` |
 | Cierre de sesión | Revocación en PostgreSQL |
-| Almacenamiento del refresh token | Cookie HttpOnly |
+| Almacenamiento del refresh token | Cookie `HttpOnly`, ruta `/api` |
 
-Una sesión puede terminar por logout, vencimiento de 24 horas o 15 minutos sin actividad registrada.
+La sesión puede finalizar por logout, vencimiento del refresh token o inactividad. El frontend debe redirigir al login cuando no sea posible renovarla.
 
-El frontend debe redirigir al login cuando ya no sea posible renovar la sesión.
-
----
-
-## 9. Flujo recomendado en React
+## 10. Flujo recomendado en React
 
 1. El usuario completa el formulario de login.
-2. React llama a `/login` con `credentials: "include"`.
-3. Guarda el JWT en el estado de autenticación.
-4. Utiliza el JWT para consultar rutas protegidas.
-5. Registra actividad real mediante `/activity`.
-6. Cuando vence el JWT, llama a `/refresh` y actualiza el token.
-7. Al recargar la página, intenta recuperar la sesión mediante `/refresh`.
-8. Si la renovación falla, redirige al login.
-9. Cuando el usuario cierra sesión, llama a `/logout` y limpia el estado.
+2. React llama a `/api/auth/login` con `credentials: "include"`.
+3. Guarda el JWT y los datos del usuario en el estado de autenticación.
+4. Lee `user.account_number` para mostrar el número de cuenta.
+5. Utiliza el JWT para consultar rutas protegidas.
+6. Registra actividad real mediante `/api/auth/activity`.
+7. Cuando vence el JWT, llama a `/api/auth/refresh` y actualiza el token.
+8. Al recargar la página, intenta recuperar la sesión mediante `/refresh` y luego consulta `/me` para recuperar los datos del usuario.
+9. Si la renovación falla, redirige al login.
+10. Al cerrar sesión, llama a `/logout` y limpia el estado.
 
-### Consideraciones para la integración
+### Consideraciones de integración
 
-- Se recomienda mantener el JWT en memoria mediante un contexto de React.
-- Evitar almacenar el refresh token en `localStorage`.
-- Centralizar las peticiones HTTP para gestionar la renovación del JWT.
-- No ejecutar renovaciones indefinidas en segundo plano sin actividad del usuario.
+- Mantener el JWT preferentemente en memoria, mediante un contexto de React.
+- No almacenar el refresh token en `localStorage`.
+- Centralizar las peticiones HTTP y la renovación del JWT.
+- Evitar renovaciones indefinidas sin actividad del usuario.
 - Evitar que varias peticiones intenten renovar el JWT simultáneamente.
+- Mostrar el número de cuenta en el dashboard y en la barra lateral, con opción para copiarlo.
+- No utilizar el número de cuenta como prueba de identidad o autorización.
 
----
+## 11. Despliegue en producción
 
-## 10. Despliegue en producción
+El frontend está desplegado en Vercel y el backend en Railway, con PostgreSQL.
 
-La configuración actual está preparada para desarrollo local.
+En producción, el frontend utiliza un *rewrite* de Vercel para enviar `/api/*` al backend de Railway. El cliente HTTP usa rutas relativas y `credentials: "include"` para las operaciones de sesión.
 
-Antes de conectar el frontend desplegado en Vercel con el backend de Railway, se deberá:
+El backend configura la cookie `refreshToken` con `HttpOnly`, `Secure` en producción, `SameSite=None` en producción y ruta `/api`. La cookie debe mantenerse protegida y no exponerse a JavaScript.
 
-- Configurar la URL real del backend en React.
-- Autorizar el dominio del frontend en CORS.
-- Revisar `SameSite` y `Secure` de las cookies para peticiones entre dominios.
+### Variables y medidas de seguridad
+
+- Mantener `DATABASE_URL`, `JWT_SECRET` y las credenciales de servicios externos fuera del repositorio.
 - Utilizar HTTPS.
-- Revisar las protecciones de las peticiones autenticadas mediante cookies.
+- Revisar CORS, cookies y proxy cuando cambien los dominios.
+- Validar permisos y saldos en el servidor para cada operación financiera.
+- No confundir el número de cuenta interno con un identificador bancario oficial.
 
----
+### Estado de la funcionalidad de números de cuenta
 
-**Estado de integración:** backend de autenticación implementado y probado. Pendiente conectar los formularios y la gestión de sesión del frontend React.
+La migración `011` fue aplicada a PostgreSQL de Railway y se comprobó que los 14 usuarios existentes tienen un número válido y único. Los cambios de `auth.service.ts` están implementados y las pruebas locales pasaron. **Hasta confirmar el despliegue del backend actualizado, no debe darse por hecho que la API pública ya devuelve `account_number`.**
+
+## 12. Estado de integración
+
+La autenticación y gestión de sesiones están integradas con el frontend React. El registro, login, renovación de JWT y cierre de sesión funcionan en el proyecto desplegado.
+
+La generación y persistencia de números de cuenta NEXAPAY ya están implementadas en PostgreSQL. La exposición del campo en las respuestas de autenticación está implementada en el código del backend, pendiente de confirmar su despliegue. La visualización del número de cuenta en el frontend y su uso en transferencias internas son los siguientes pasos.
