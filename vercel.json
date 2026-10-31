@@ -1,0 +1,15 @@
+{
+    "version": 2,
+    "builds": [
+        {
+            "src": "api/welcome-email.ts",
+            "use": "@vercel/node"
+        }
+    ],
+    "routes": [
+        {
+            "src": "/api/welcome-email",
+            "dest": "/api/welcome-email.ts"
+        }
+    ]
+}
