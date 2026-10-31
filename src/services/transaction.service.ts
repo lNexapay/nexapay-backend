@@ -8,6 +8,7 @@ import {
   WalletRepository,
 } from "../types/wallet.types";
 import { postgresWalletRepository } from "../data/postgres-wallet.repository";
+import { findWalletIdByRecipient } from "./recipient.service";
 
 // Monto máximo permitido por operación.
 export const MAX_AMOUNT = 1_000_000_000_000;
@@ -52,13 +53,22 @@ const validateAmount = (amount: number): void => {
 };
 
 /**
+ * Dado el texto que escribió el usuario (correo o número de cuenta),
+ * devuelve el id de la billetera del destinatario, o null si no existe.
+ */
+export type RecipientResolver = (
+  recipient: string
+) => Promise<string | null>;
+
+/**
  * Crea el servicio con un repositorio específico.
  *
  * Permite utilizar el repositorio en memoria
  * o el repositorio PostgreSQL.
  */
 export const createTransactionService = (
-  repo: WalletRepository
+  repo: WalletRepository,
+  resolveRecipient: RecipientResolver = async () => null
 ) => {
   /**
    * Comprueba que el repositorio admita
@@ -255,6 +265,135 @@ export const createTransactionService = (
     },
 
     /**
+     * Transfiere dinero a otro usuario.
+     *
+     * Cada billetera registra su propio movimiento:
+     * transfer_out para quien envía y transfer_in para quien recibe.
+     * Devuelve el movimiento del emisor.
+     */
+    async transfer(
+      toAlias: unknown,
+      currency: CurrencyCode,
+      amount: number,
+      description?: string,
+      fromWalletId: string = DEFAULT_WALLET_ID
+    ): Promise<Transaction> {
+      if (typeof toAlias !== "string" || !toAlias.trim()) {
+        throw new AppError(
+          "El alias del destinatario es obligatorio",
+          400
+        );
+      }
+
+      if (!currencyService.isSupported(currency)) {
+        throw new AppError("Moneda no soportada", 400);
+      }
+
+      validateAmount(amount);
+
+      const alias = toAlias.trim().toLowerCase();
+
+      const toWalletId = await resolveRecipient(alias);
+
+      if (!toWalletId) {
+        throw new AppError("Destinatario no encontrado", 404);
+      }
+
+      if (toWalletId === fromWalletId) {
+        throw new AppError(
+          "No puedes transferirte a ti mismo",
+          400
+        );
+      }
+
+      const sentDescription =
+        description ?? `Transferencia a ${alias}`;
+      const receivedDescription =
+        description ?? "Transferencia recibida";
+
+      // PostgreSQL: operación atómica.
+      if (repo.transferAtomic) {
+        return repo.transferAtomic(
+          fromWalletId,
+          toWalletId,
+          currency,
+          amount,
+          sentDescription,
+          receivedDescription
+        );
+      }
+
+      // Repositorio en memoria: si algo falla, se restaura todo.
+      if (
+        !repo.withTransaction ||
+        !repo.setBalance ||
+        !repo.saveTransaction
+      ) {
+        throw new AppError(
+          "El repositorio no admite esta operación",
+          500
+        );
+      }
+
+      return repo.withTransaction(async (tx) => {
+        const source = await tx.getBalance(
+          fromWalletId,
+          currency
+        );
+
+        if (!source || source.amount < amount) {
+          throw new AppError("Saldo insuficiente", 400);
+        }
+
+        const target = await tx.getBalance(
+          toWalletId,
+          currency
+        );
+
+        await tx.setBalance!(
+          fromWalletId,
+          currency,
+          round2(source.amount - amount)
+        );
+
+        await tx.setBalance!(
+          toWalletId,
+          currency,
+          round2((target?.amount ?? 0) + amount)
+        );
+
+        // Una fila para cada lado: cada billetera ve su movimiento.
+        const sent = await tx.saveTransaction!({
+          walletId: fromWalletId,
+          counterpartyWalletId: toWalletId,
+          type: "transfer_out",
+          currencyFrom: currency,
+          currencyTo: currency,
+          amountFrom: amount,
+          amountTo: amount,
+          rateUsed: 1,
+          status: "completed",
+          description: sentDescription,
+        });
+
+        await tx.saveTransaction!({
+          walletId: toWalletId,
+          counterpartyWalletId: fromWalletId,
+          type: "transfer_in",
+          currencyFrom: currency,
+          currencyTo: currency,
+          amountFrom: amount,
+          amountTo: amount,
+          rateUsed: 1,
+          status: "completed",
+          description: receivedDescription,
+        });
+
+        return sent;
+      });
+    },
+
+    /**
      * Obtiene el historial de movimientos.
      */
     async getHistory(
@@ -273,5 +412,6 @@ export const createTransactionService = (
 export const transactionService = createTransactionService(
   process.env.NODE_ENV === "test"
     ? walletRepository
-    : postgresWalletRepository
+    : postgresWalletRepository,
+  findWalletIdByRecipient
 );

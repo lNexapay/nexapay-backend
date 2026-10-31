@@ -312,4 +312,107 @@ export const postgresWalletRepository = {
         }
     },
 
+    /**
+     * Transfiere dinero entre dos billeteras de forma atómica.
+     *
+     * - Bloquea ambas billeteras en orden fijo (evita bloqueos cruzados).
+     * - Descuenta al emisor solo si tiene saldo suficiente.
+     * - Acredita al destinatario (crea el saldo si aún no existe).
+     * - Registra un movimiento por cada lado.
+     *
+     * Devuelve el movimiento del emisor. Si algo falla, revierte todo.
+     */
+    async transferAtomic(
+        fromWalletId: string,
+        toWalletId: string,
+        currency: CurrencyCode,
+        amount: number,
+        sentDescription: string,
+        receivedDescription: string
+    ): Promise<Transaction> {
+        const client = await pool.connect();
+
+        try {
+            await client.query("BEGIN");
+
+            // Bloquear las dos billeteras siempre en el mismo orden.
+            const wallets = await client.query(
+                `SELECT id
+       FROM wallets
+       WHERE id = ANY($1::uuid[])
+       ORDER BY id
+       FOR UPDATE`,
+                [[fromWalletId, toWalletId]]
+            );
+
+            if (wallets.rows.length !== 2) {
+                throw new AppError("Billetera no encontrada", 404);
+            }
+
+            // Descontar al emisor solo si tiene saldo suficiente.
+            const debit = await client.query(
+                `UPDATE balances
+       SET amount = amount - $3,
+           updated_at = NOW()
+       WHERE wallet_id = $1
+         AND currency_code = $2
+         AND amount >= $3
+       RETURNING id`,
+                [fromWalletId, currency, amount]
+            );
+
+            if (debit.rows.length === 0) {
+                throw new AppError("Saldo insuficiente", 400);
+            }
+
+            // Acreditar al destinatario; si no tiene esa moneda, se crea.
+            await client.query(
+                `INSERT INTO balances (wallet_id, currency_code, amount)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (wallet_id, currency_code)
+       DO UPDATE SET amount = balances.amount + EXCLUDED.amount,
+                     updated_at = NOW()`,
+                [toWalletId, currency, amount]
+            );
+
+            // Movimiento del emisor.
+            const sent = await client.query(
+                `INSERT INTO transactions (
+         wallet_id, type, currency_from, currency_to,
+         amount_from, amount_to, rate_used, status, description
+       )
+       VALUES (
+         $1, 'transfer_out', $2, $2,
+         $3, $3, 1, 'completed', $4
+       )
+       RETURNING *`,
+                [fromWalletId, currency, amount, sentDescription]
+            );
+
+            // Movimiento del destinatario.
+            await client.query(
+                `INSERT INTO transactions (
+         wallet_id, type, currency_from, currency_to,
+         amount_from, amount_to, rate_used, status, description
+       )
+       VALUES (
+         $1, 'transfer_in', $2, $2,
+         $3, $3, 1, 'completed', $4
+       )`,
+                [toWalletId, currency, amount, receivedDescription]
+            );
+
+            await client.query("COMMIT");
+
+            return mapTransaction(sent.rows[0]);
+
+        } catch (error) {
+            await client.query("ROLLBACK");
+            throw error;
+
+        } finally {
+            client.release();
+        }
+    },
+
 };

@@ -114,6 +114,23 @@ export class InMemoryWalletRepository implements WalletRepository {
       .reverse() // las más recientes primero
       .slice(0, limit);
   }
+    // Si algo falla dentro de `fn`, se restauran los datos como estaban.
+  async withTransaction<T>(
+    fn: (repo: WalletRepository) => Promise<T>
+  ): Promise<T> {
+    const balancesBackup = new Map(this.balances);
+    const transactionsBackup = [...this.transactions];
+    try {
+      return await fn(this);
+    } catch (error) {
+      this.balances.clear();
+      for (const [key, value] of balancesBackup) {
+        this.balances.set(key, value);
+      }
+      this.transactions.splice(0, this.transactions.length, ...transactionsBackup);
+      throw error;
+    }
+  }
 }
 
   

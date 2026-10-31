@@ -14,13 +14,14 @@ export interface Balance {
   updatedAt: Date;
 }
 
-export type TransactionType = "deposit" | "convert" | "transfer";
+export type TransactionType = "deposit" | "convert" | "transfer_out" | "transfer_in";
 export type TransactionStatus = "pending" | "completed" | "failed";
 
 export interface Transaction {
   id: string;
   walletId: string;
   contextId?: string;
+  counterpartyWalletId?: string;
   type: TransactionType;
   currencyFrom: CurrencyCode;
   currencyTo: CurrencyCode;
@@ -90,5 +91,20 @@ export interface WalletRepository {
     rate: number,
     description?: string
   ): Promise<Transaction>;
+
+  // Transferencia entre dos billeteras en una sola operación atómica (PostgreSQL).
+  transferAtomic?(
+    fromWalletId: string,
+    toWalletId: string,
+    currency: CurrencyCode,
+    amount: number,
+    sentDescription: string,
+    receivedDescription: string
+  ): Promise<Transaction>;
+
+  // Ejecuta varias escrituras como una unidad; si algo falla, se revierten (memoria).
+  withTransaction?<T>(
+    fn: (repo: WalletRepository) => Promise<T>
+  ): Promise<T>;
 }
 

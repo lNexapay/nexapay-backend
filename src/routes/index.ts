@@ -12,7 +12,7 @@ router.use(currencyRoutes);
 // Privadas: requieren sesión (JWT + cookie de sesión activa).
 // El middleware deja el id del usuario en res.locals.userId.
 router.use(
-  ["/balances", "/deposit", "/convert", "/transactions"],
+  ["/balances", "/deposit", "/convert", "/transactions", "/transfers"],
   authMiddleware
 );
 router.use(balanceRoutes);
