@@ -45,11 +45,66 @@ export interface TotalBalance {
   }[];
 }
 
+
+
 export interface WalletRepository {
+  // Consultas de balances.
   getBalances(walletId: string): Promise<Balance[]>;
-  getBalance(walletId: string, currency: CurrencyCode): Promise<Balance | null>;
-  setBalance(walletId: string, currency: CurrencyCode, amount: number): Promise<Balance>;
-  saveTransaction(tx: Omit<Transaction, "id" | "createdAt">): Promise<Transaction>;
-  getTransactions(walletId: string, limit?: number): Promise<Transaction[]>;
-  withTransaction<T>(fn: (repo: WalletRepository) => Promise<T>): Promise<T>;
+
+  getBalance(
+    walletId: string,
+    currency: CurrencyCode
+  ): Promise<Balance | null>;
+
+  // Consultas de movimientos.
+  getTransactions(
+    walletId: string,
+    limit?: number
+  ): Promise<Transaction[]>;
+
+  // Métodos utilizados por el repositorio en memoria.
+  // PostgreSQL utiliza operaciones atómicas en su lugar.
+  setBalance?(
+    walletId: string,
+    currency: CurrencyCode,
+    amount: number
+  ): Promise<Balance>;
+
+  saveTransaction?(
+    tx: Omit<Transaction, "id" | "createdAt">
+  ): Promise<Transaction>;
+
+  // Operaciones atómicas para PostgreSQL.
+  depositAtomic?(
+    walletId: string,
+    currency: CurrencyCode,
+    amount: number,
+    description?: string
+  ): Promise<Transaction>;
+
+  convertAtomic?(
+    walletId: string,
+    from: CurrencyCode,
+    to: CurrencyCode,
+    amount: number,
+    convertedAmount: number,
+    rate: number,
+    description?: string
+  ): Promise<Transaction>;
+
+  // Transferencia entre dos billeteras en una sola operación atómica (PostgreSQL).
+  transferAtomic?(
+    fromWalletId: string,
+    toWalletId: string,
+    currency: CurrencyCode,
+    amount: number,
+    sentDescription: string,
+    receivedDescription: string
+  ): Promise<Transaction>;
+
+  // Ejecuta varias escrituras como una unidad; si algo falla, se revierten (memoria).
+  withTransaction?<T>(
+    fn: (repo: WalletRepository) => Promise<T>
+  ): Promise<T>;
 }
+

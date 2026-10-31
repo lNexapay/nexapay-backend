@@ -107,8 +107,8 @@ describe("transactionService", () => {
     it("cada wallet ve su propio movimiento y acepta el alias sin arroba", async () => {
       await transfers.transfer("juan.nexa", "USD", 50);
 
-      const enviada = await transfers.getHistory(20, DEFAULT_WALLET_ID);
-      const recibida = await transfers.getHistory(20, OTRA_WALLET);
+      const enviada = await transfers.getHistory(DEFAULT_WALLET_ID, 20);
+      const recibida = await transfers.getHistory(OTRA_WALLET, 20);
 
       expect(enviada[0].type).toBe("transfer_out");
       expect(recibida[0].type).toBe("transfer_in");

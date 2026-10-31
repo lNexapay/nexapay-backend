@@ -9,6 +9,19 @@ vi.mock("../../src/auth/auth.middleware", () => ({
   },
 }));
 
+/**
+ * Simula la búsqueda de la billetera durante los tests.
+ *
+ * En producción getWalletId consulta PostgreSQL.
+ * En estas pruebas utilizamos el repositorio en memoria,
+ * por eso devolvemos directamente el ID simulado.
+ */
+vi.mock("../../src/utils/currentUser", () => ({
+  getWalletId: async (res: any) => {
+    return res.locals.userId;
+  },
+}));
+
 // Simula la búsqueda del destinatario (en producción consulta la tabla users).
 vi.mock("../../src/services/recipient.service", () => ({
   findWalletIdByRecipient: async (recipient: string) =>

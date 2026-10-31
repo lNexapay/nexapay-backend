@@ -70,7 +70,9 @@ export const register = async (req: Request, res: Response) => {
             typeof error === "object" &&
             error !== null &&
             "code" in error &&
-            error.code === "23505"
+            error.code === "23505" &&
+            "constraint" in error &&
+            error.constraint === "users_email_key"
         ) {
             res.status(409).json({
                 message: "El email ya está registrado"
