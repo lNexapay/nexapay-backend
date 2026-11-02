@@ -1,6 +1,6 @@
-
 import { walletRepository, DEFAULT_WALLET_ID } from "../data/wallet.store";
 import { currencyService } from "./currency.service";
+import { feeService } from "./fee.service";
 import { AppError } from "../utils/appError";
 import {
   CurrencyCode,
@@ -94,6 +94,7 @@ export const createTransactionService = (
   return {
     /**
      * Registra un depósito.
+     * Los depósitos no cobran comisión.
      *
      * Se conserva el orden de parámetros utilizado
      * por los controladores y las pruebas.
@@ -151,6 +152,10 @@ export const createTransactionService = (
 
     /**
      * Convierte dinero entre monedas.
+     *
+     * La comisión depende del par de monedas y se calcula sobre el
+     * monto de origen. Se descuenta de lo que se convierte: al usuario
+     * se le debita el monto completo y recibe el neto convertido.
      */
     async convert(
       from: CurrencyCode,
@@ -175,9 +180,20 @@ export const createTransactionService = (
 
       validateAmount(amount);
 
-      // Calcular la conversión.
+      // Comisión sobre el monto de origen; se descuenta de lo que se convierte.
+      const feeAmount = feeService.conversionFee(amount, from, to);
+      const netAmount = round2(amount - feeAmount);
+
+      if (netAmount <= 0) {
+        throw new AppError(
+          "El monto es demasiado pequeño para cubrir la comisión",
+          400
+        );
+      }
+
+      // Calcular la conversión sobre el monto neto.
       const conversion = currencyService.convert(
-        amount,
+        netAmount,
         from,
         to
       );
@@ -208,6 +224,7 @@ export const createTransactionService = (
           amount,
           convertedAmount,
           conversion.rate,
+          feeAmount,
           description
         );
       }
@@ -236,7 +253,7 @@ export const createTransactionService = (
 
       const targetAmount = targetBalance?.amount ?? 0;
 
-      // Descontar la moneda de origen.
+      // Descontar la moneda de origen (monto completo, comisión incluida).
       await writer.setBalance(
         walletId,
         from,
@@ -261,6 +278,8 @@ export const createTransactionService = (
         rateUsed: conversion.rate,
         status: "completed",
         description,
+        feeAmount,
+        feeCurrency: from,
       });
     },
 
@@ -270,6 +289,9 @@ export const createTransactionService = (
      * Cada billetera registra su propio movimiento:
      * transfer_out para quien envía y transfer_in para quien recibe.
      * Devuelve el movimiento del emisor.
+     *
+     * Si la transferencia tiene comisión, la paga el emisor además
+     * del monto. El destinatario recibe el monto exacto.
      */
     async transfer(
       toAlias: unknown,
@@ -306,6 +328,10 @@ export const createTransactionService = (
         );
       }
 
+      // Comisión de la transferencia y total que se le debita al emisor.
+      const feeAmount = feeService.transferFee(amount);
+      const totalDebit = round2(amount + feeAmount);
+
       const sentDescription =
         description ?? `Transferencia a ${alias}`;
       const receivedDescription =
@@ -318,6 +344,7 @@ export const createTransactionService = (
           toWalletId,
           currency,
           amount,
+          feeAmount,
           sentDescription,
           receivedDescription
         );
@@ -341,7 +368,8 @@ export const createTransactionService = (
           currency
         );
 
-        if (!source || source.amount < amount) {
+        // El emisor necesita saldo para el monto y la comisión.
+        if (!source || source.amount < totalDebit) {
           throw new AppError("Saldo insuficiente", 400);
         }
 
@@ -353,7 +381,7 @@ export const createTransactionService = (
         await tx.setBalance!(
           fromWalletId,
           currency,
-          round2(source.amount - amount)
+          round2(source.amount - totalDebit)
         );
 
         await tx.setBalance!(
@@ -374,6 +402,8 @@ export const createTransactionService = (
           rateUsed: 1,
           status: "completed",
           description: sentDescription,
+          feeAmount,
+          feeCurrency: currency,
         });
 
         await tx.saveTransaction!({

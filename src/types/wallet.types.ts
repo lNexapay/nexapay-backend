@@ -30,6 +30,8 @@ export interface Transaction {
   rateUsed: number;
   status: TransactionStatus;
   description?: string;
+  feeAmount?: number;           // comisión cobrada en esta operación
+  feeCurrency?: CurrencyCode;   // moneda de la comisión
   createdAt: Date;
 }
 
@@ -82,22 +84,23 @@ export interface WalletRepository {
     description?: string
   ): Promise<Transaction>;
 
-  convertAtomic?(
+    convertAtomic?(
     walletId: string,
     from: CurrencyCode,
     to: CurrencyCode,
     amount: number,
     convertedAmount: number,
     rate: number,
+    feeAmount: number,
     description?: string
   ): Promise<Transaction>;
 
-  // Transferencia entre dos billeteras en una sola operación atómica (PostgreSQL).
   transferAtomic?(
     fromWalletId: string,
     toWalletId: string,
     currency: CurrencyCode,
     amount: number,
+    feeAmount: number,
     sentDescription: string,
     receivedDescription: string
   ): Promise<Transaction>;

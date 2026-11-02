@@ -37,6 +37,8 @@ const mapTransaction = (row: any): Transaction => ({
     rateUsed: Number(row.rate_used),
     status: row.status,
     description: row.description ?? undefined,
+    feeAmount: Number(row.fee_amount ?? 0),
+    feeCurrency: row.fee_currency ?? undefined,
     createdAt: row.created_at,
 });
 
@@ -101,6 +103,8 @@ export const postgresWalletRepository = {
          rate_used,
          status,
          description,
+         fee_amount,
+         fee_currency,
          created_at
        FROM transactions
        WHERE wallet_id = $1
@@ -217,6 +221,7 @@ export const postgresWalletRepository = {
         amount: number,
         convertedAmount: number,
         rate: number,
+        feeAmount: number,
         description?: string
     ): Promise<Transaction> {
         const client = await pool.connect();
@@ -271,19 +276,14 @@ export const postgresWalletRepository = {
             // Guardar el movimiento en el historial.
             const transactionResult = await client.query(
                 `INSERT INTO transactions (
-         wallet_id,
-         type,
-         currency_from,
-         currency_to,
-         amount_from,
-         amount_to,
-         rate_used,
-         status,
-         description
+         wallet_id, type, currency_from, currency_to,
+         amount_from, amount_to, rate_used, status, description,
+         fee_amount, fee_currency
        )
        VALUES (
          $1, 'convert', $2, $3,
-         $4, $5, $6, 'completed', $7
+         $4, $5, $6, 'completed', $7,
+         $8, $2
        )
        RETURNING *`,
                 [
@@ -293,7 +293,8 @@ export const postgresWalletRepository = {
                     amount,
                     convertedAmount,
                     rate,
-                    description ?? null
+                    description ?? null,
+                    feeAmount
                 ]
             );
 
@@ -327,6 +328,7 @@ export const postgresWalletRepository = {
         toWalletId: string,
         currency: CurrencyCode,
         amount: number,
+        feeAmount: number,
         sentDescription: string,
         receivedDescription: string
     ): Promise<Transaction> {
@@ -348,6 +350,7 @@ export const postgresWalletRepository = {
             if (wallets.rows.length !== 2) {
                 throw new AppError("Billetera no encontrada", 404);
             }
+            const totalDebit = Math.round((amount + feeAmount) * 100) / 100;
 
             // Descontar al emisor solo si tiene saldo suficiente.
             const debit = await client.query(
@@ -376,17 +379,19 @@ export const postgresWalletRepository = {
             );
 
             // Movimiento del emisor.
-            const sent = await client.query(
+                        const sent = await client.query(
                 `INSERT INTO transactions (
          wallet_id, type, currency_from, currency_to,
-         amount_from, amount_to, rate_used, status, description
+         amount_from, amount_to, rate_used, status, description,
+         fee_amount, fee_currency
        )
        VALUES (
          $1, 'transfer_out', $2, $2,
-         $3, $3, 1, 'completed', $4
+         $3, $3, 1, 'completed', $4,
+         $5, $2
        )
        RETURNING *`,
-                [fromWalletId, currency, amount, sentDescription]
+                [fromWalletId, currency, amount, sentDescription, feeAmount]
             );
 
             // Movimiento del destinatario.
