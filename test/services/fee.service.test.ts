@@ -31,4 +31,13 @@ describe("feeService", () => {
       Math.round((100 * TRANSFER_FEE_PERCENT) / 100 * 100) / 100
     );
   });
+
+    it("devuelve la tabla de comisiones en ambos sentidos", () => {
+    const table = feeService.getFeeTable();
+
+    expect(table.conversion).toHaveLength(12);
+    expect(table.conversion).toContainEqual({ from: "USD", to: "COP", percent: 0.9 });
+    expect(table.conversion).toContainEqual({ from: "COP", to: "USD", percent: 0.9 });
+    expect(table.transfer.percent).toBe(TRANSFER_FEE_PERCENT);
+  });
 });
