@@ -27,4 +27,18 @@ export const feeService = {
   transferFee(amount: number): number {
     return round2((amount * TRANSFER_FEE_PERCENT) / 100);
   },
+    // Tabla de comisiones para el frontend: todos los pares, en ambos sentidos.
+  getFeeTable() {
+    const conversion = Object.entries(CONVERSION_FEE_PERCENT).flatMap(
+      ([key, percent]) => {
+        const [a, b] = key.split("-");
+        return [
+          { from: a, to: b, percent },
+          { from: b, to: a, percent },
+        ];
+      }
+    );
+
+    return { conversion, transfer: { percent: TRANSFER_FEE_PERCENT } };
+  },
 };
