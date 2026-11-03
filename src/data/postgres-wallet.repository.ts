@@ -350,6 +350,8 @@ export const postgresWalletRepository = {
             if (wallets.rows.length !== 2) {
                 throw new AppError("Billetera no encontrada", 404);
             }
+
+            // El emisor paga el monto y, si la hay, la comisión.
             const totalDebit = Math.round((amount + feeAmount) * 100) / 100;
 
             // Descontar al emisor solo si tiene saldo suficiente.
@@ -361,7 +363,7 @@ export const postgresWalletRepository = {
          AND currency_code = $2
          AND amount >= $3
        RETURNING id`,
-                [fromWalletId, currency, amount]
+                [fromWalletId, currency, totalDebit]
             );
 
             if (debit.rows.length === 0) {
@@ -379,7 +381,7 @@ export const postgresWalletRepository = {
             );
 
             // Movimiento del emisor.
-                        const sent = await client.query(
+            const sent = await client.query(
                 `INSERT INTO transactions (
          wallet_id, type, currency_from, currency_to,
          amount_from, amount_to, rate_used, status, description,

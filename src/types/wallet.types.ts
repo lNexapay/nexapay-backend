@@ -84,7 +84,7 @@ export interface WalletRepository {
     description?: string
   ): Promise<Transaction>;
 
-    convertAtomic?(
+  convertAtomic?(
     walletId: string,
     from: CurrencyCode,
     to: CurrencyCode,
@@ -95,6 +95,7 @@ export interface WalletRepository {
     description?: string
   ): Promise<Transaction>;
 
+  // Transferencia entre dos billeteras en una sola operación atómica (PostgreSQL).
   transferAtomic?(
     fromWalletId: string,
     toWalletId: string,
