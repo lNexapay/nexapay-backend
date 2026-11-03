@@ -42,7 +42,8 @@ describe("rutas de operaciones", () => {
   it("POST /api/convert convierte USD a COP", async () => {
     const res = await request(app).post("/api/convert").send({ from: "USD", to: "COP", amount: 100 });
     expect(res.status).toBe(201);
-    expect(res.body.amountTo).toBe(316187);
+    expect(res.body.amountTo).toBe(313341.32);
+    expect(res.body.feeAmount).toBe(0.9);
   });
 
   it("POST /api/convert sin saldo suficiente responde 400", async () => {

@@ -9,6 +9,7 @@ import {
   createTransactionService,
   MAX_AMOUNT,
 } from "../../src/services/transaction.service";
+import { feeService } from "../../src/services/fee.service";
 
 const round2 = (v: number): number => Math.round(v * 100) / 100;
 
@@ -43,16 +44,19 @@ describe("transactionService", () => {
     await expect(service.deposit("USD", -5)).rejects.toThrow(
       "El monto debe ser un número mayor a cero"
     );
-    await expect(service.deposit("USD", "50")).rejects.toThrow(
+    await expect(service.deposit("USD", "50" as unknown as number)).rejects.toThrow(
       "El monto debe ser un número mayor a cero"
     );
   });
 
-  it("convierte USD a COP y actualiza ambos saldos", async () => {
-    const expectedCop = round2(100 * RATES_PER_USD.COP);
+  it("convierte USD a COP descontando la comisión y actualiza ambos saldos", async () => {
+    const fee = feeService.conversionFee(100, "USD", "COP");
+    const expectedCop = round2((100 - fee) * RATES_PER_USD.COP);
 
     const tx = await service.convert("USD", "COP", 100);
 
+    expect(tx.feeAmount).toBe(fee);
+    expect(tx.feeCurrency).toBe("USD");
     expect(tx.amountTo).toBe(expectedCop);
     expect((await balances.getBalance("USD")).amount).toBe(420);
     expect((await balances.getBalance("COP")).amount).toBeCloseTo(
@@ -151,7 +155,7 @@ describe("transactionService", () => {
     it("revierte los cambios si algo falla", async () => {
       await expect(
         repo.withTransaction(async (r) => {
-          await r.setBalance(DEFAULT_WALLET_ID, "USD", 1);
+          await r.setBalance!(DEFAULT_WALLET_ID, "USD", 1);
           throw new Error("fallo");
         })
       ).rejects.toThrow("fallo");

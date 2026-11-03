@@ -30,6 +30,8 @@ export interface Transaction {
   rateUsed: number;
   status: TransactionStatus;
   description?: string;
+  feeAmount?: number;           // comisión cobrada en esta operación
+  feeCurrency?: CurrencyCode;   // moneda de la comisión
   createdAt: Date;
 }
 
@@ -89,6 +91,7 @@ export interface WalletRepository {
     amount: number,
     convertedAmount: number,
     rate: number,
+    feeAmount: number,
     description?: string
   ): Promise<Transaction>;
 
@@ -98,6 +101,7 @@ export interface WalletRepository {
     toWalletId: string,
     currency: CurrencyCode,
     amount: number,
+    feeAmount: number,
     sentDescription: string,
     receivedDescription: string
   ): Promise<Transaction>;
