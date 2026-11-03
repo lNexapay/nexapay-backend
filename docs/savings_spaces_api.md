@@ -301,24 +301,88 @@ El frontend debe distinguir entre:
 
 La barra de progreso de cada espacio puede calcularse como `amount / targetAmount * 100` cuando exista una meta. Para la representación visual puede limitarse al 100 %, aunque el saldo supere el objetivo.
 
-## 8. Estado de implementación
+## 8. Integración con el patrimonio total
 
-**Verificado manualmente:**
+Los fondos guardados en espacios de ahorro forman parte del patrimonio de la billetera, aunque no están disponibles para realizar operaciones.
 
-- Creación y listado de espacios.
-- Consulta individual.
-- Aportes y retiros.
-- Rechazo por saldo insuficiente.
-- Consulta del historial.
-- Rechazo de solicitudes sin autenticación.
-- Rechazo de consultas y movimientos sobre espacios de otro usuario.
+El endpoint `GET /api/balances/total` incluye tanto el saldo disponible como el dinero reservado en los espacios de ahorro.
 
-**Pendiente:**
+**Endpoint:**
 
-- Pruebas automatizadas y de concurrencia.
-- Revisión del cálculo de patrimonio total para incluir los fondos reservados.
-- Revisión de límites de saldos acumulados y precisión monetaria.
-- Paginación del historial para espacios con muchos movimientos.
-- Política de idempotencia para evitar duplicaciones por reintentos de solicitudes.
-- Integración y pruebas del frontend.
+`GET /api/balances/total?base=ARS`
+
+**Respuesta de ejemplo — 200 OK:**
+
+```json
+{
+  "walletId": "2894cd7b-35da-44bc-8ebc-29d93dc202ff",
+  "baseCurrency": "ARS",
+  "total": 1620750,
+  "breakdown": [
+    {
+      "currencyCode": "ARS",
+      "amount": 100000,
+      "availableAmount": 98900,
+      "reservedAmount": 1100,
+      "convertedAmount": 100000
+    },
+    {
+      "currencyCode": "COP",
+      "amount": 1580935,
+      "availableAmount": 1580935,
+      "reservedAmount": 0,
+      "convertedAmount": 760375
+    },
+    {
+      "currencyCode": "EUR",
+      "amount": 0,
+      "availableAmount": 0,
+      "reservedAmount": 0,
+      "convertedAmount": 0
+    },
+    {
+      "currencyCode": "USD",
+      "amount": 500,
+      "availableAmount": 500,
+      "reservedAmount": 0,
+      "convertedAmount": 760375
+    }
+  ]
+}
+```
+
+### Significado de los campos
+
+| Campo | Descripción |
+|---|---|
+| `walletId` | Identificador de la billetera |
+| `baseCurrency` | Moneda utilizada para expresar el patrimonio |
+| `total` | Patrimonio global convertido a la moneda base |
+| `breakdown[].currencyCode` | Moneda del saldo |
+| `breakdown[].availableAmount` | Dinero disponible para operaciones |
+| `breakdown[].reservedAmount` | Dinero guardado en espacios de ahorro |
+| `breakdown[].amount` | Suma del saldo disponible y reservado |
+| `breakdown[].convertedAmount` | Patrimonio de esa moneda convertido a la moneda base |
+
+Para cada moneda se cumple:
+
+`amount = availableAmount + reservedAmount`
+
+Los aportes y retiros entre la billetera y los espacios de ahorro no modifican el patrimonio total. Únicamente redistribuyen dinero entre el saldo disponible y el reservado.
+
+### Consistencia de los datos
+
+El cálculo utiliza `getBalanceSnapshot()`, que obtiene los saldos disponibles y reservados mediante una única consulta SQL en PostgreSQL.
+
+Esto permite calcular el patrimonio utilizando una misma instantánea de datos y evita combinar lecturas independientes realizadas en distintos momentos.
+
+### Compatibilidad con el frontend
+
+El campo `breakdown[].amount` ahora representa el patrimonio total de cada moneda, no únicamente el saldo disponible.
+
+Las interfaces que necesiten mostrar dinero utilizable deben consumir `availableAmount`.
+
+El campo `convertedAmount` incluye también los fondos reservados, por lo que no debe interpretarse como dinero disponible para gastar.
+
+Los endpoints `/api/balances` y `/api/balances/:currency` continúan devolviendo saldos disponibles.
 
