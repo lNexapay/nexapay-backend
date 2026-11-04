@@ -32,7 +32,7 @@ describe("feeService", () => {
     );
   });
 
-    it("devuelve la tabla de comisiones en ambos sentidos", () => {
+  it("devuelve la tabla de comisiones en ambos sentidos", () => {
     const table = feeService.getFeeTable();
 
     expect(table.conversion).toHaveLength(12);

@@ -19,7 +19,7 @@ router.use(
 router.use(balanceRoutes);
 router.use(transactionRoutes);
 
-router.use(currencyRoutes);
+// Pública: comisiones vigentes para estimar el costo antes de convertir.
 router.use(feeRoutes);
 
 export default router;
