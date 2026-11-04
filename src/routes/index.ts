@@ -3,6 +3,7 @@ import { authMiddleware } from "../auth/auth.middleware";
 import balanceRoutes from "./balance.routes";
 import currencyRoutes from "./currency.routes";
 import transactionRoutes from "./transaction.routes";
+import feeRoutes from "./fee.routes";
 
 const router = Router();
 
@@ -17,5 +18,8 @@ router.use(
 );
 router.use(balanceRoutes);
 router.use(transactionRoutes);
+
+// Pública: comisiones vigentes para estimar el costo antes de convertir.
+router.use(feeRoutes);
 
 export default router;
