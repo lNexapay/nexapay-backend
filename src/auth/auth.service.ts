@@ -161,7 +161,13 @@ export const loginUser = async (
         throw new Error("Credenciales incorrectas");
     }
 
-    // Comprobar la contraseña.
+    // Los usuarios registrados exclusivamente con Google
+    // no tienen contraseña local.
+    if (typeof user.password_hash !== "string") {
+        throw new Error("Credenciales incorrectas");
+    }
+
+    // Comprobar la contraseña del usuario.
     const validPassword = await bcrypt.compare(
         password,
         user.password_hash

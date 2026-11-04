@@ -145,6 +145,56 @@ El ejemplo utiliza la ruta relativa de producción. En desarrollo local, el clie
 
 El refresh token **no se almacena manualmente**: el navegador administra la cookie `HttpOnly`.
 
+## 4.1 Inicio de sesión con Google
+
+`POST /api/auth/google`
+
+Verifica un ID token de Google, registra al usuario si es la primera vez (con su billetera y balances iniciales en ARS, USD, EUR y COP) y abre una sesión NEXAPAY con el mismo JWT y refresh token del login tradicional.
+
+### Requisitos
+
+- Variable de entorno `GOOGLE_CLIENT_ID` en el backend (el frontend debe usar el mismo ID de cliente).
+- Migración `014_add_google_auth.up.sql` aplicada en PostgreSQL.
+
+### Body
+
+```json
+{
+  "idToken": "ID token entregado por Google Identity Services"
+}
+```
+
+### Respuesta exitosa — `200`
+
+```json
+{
+  "message": "Inicio de sesión con Google exitoso",
+  "token": "jwt",
+  "user": {
+    "id": "uuid",
+    "name": "Ana Pérez",
+    "email": "ana@correo.com",
+    "account_number": "12345678"
+  }
+}
+```
+
+El refresh token se entrega solo en la cookie `HttpOnly` (ruta `/api`), igual que en `/api/auth/login`. El frontend debe llamar con `credentials: "include"`.
+
+### Posibles errores
+
+| Código | Motivo |
+|---|---|
+| `400` | No se envió `idToken` o no es un texto |
+| `401` | Token inválido, vencido, de otra aplicación o con correo no verificado |
+| `409` | Ya existe una cuenta tradicional con ese correo |
+| `500` | Falta `GOOGLE_CLIENT_ID` o error interno |
+
+### Notas
+
+- Una cuenta creada con Google no tiene contraseña local: `/api/auth/login` responde "Credenciales incorrectas".
+- Las cuentas tradicionales **no** se vinculan automáticamente por coincidencia de correo; esa vinculación está pendiente de implementar.
+
 ## 5. Obtener el usuario autenticado
 
 **`GET /api/auth/me`**

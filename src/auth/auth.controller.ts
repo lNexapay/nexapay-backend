@@ -14,6 +14,10 @@ import {
     updateSessionActivity
 } from "./refresh-token.service";
 import { sendWelcomeEmail } from "../services/welcome-email.service";
+import {
+    loginWithGoogle,
+    GoogleAuthError
+} from "./google-auth.service";
 
 export const register = async (req: Request, res: Response) => {
     try {
@@ -315,6 +319,66 @@ export const activity = async (req: Request, res: Response) => {
 
         res.status(500).json({
             message: "Error interno al registrar actividad"
+        });
+    }
+};
+
+/**
+ * Iniciar sesión o registrar un usuario mediante Google.
+ * Google verifica la identidad y NEXAPAY administra la sesión.
+ */
+export const googleLogin = async (req: Request, res: Response) => {
+    try {
+        const { idToken } = req.body ?? {};
+
+        // Validar que se haya enviado el token de Google.
+        if (typeof idToken !== "string" || !idToken.trim()) {
+            res.status(400).json({
+                message: "Debés proporcionar un token de Google"
+            });
+            return;
+        }
+
+        // Verificar Google, buscar o crear el usuario
+        // y generar la sesión de NEXAPAY.
+        const result = await loginWithGoogle(idToken);
+
+        // Eliminar una posible cookie con la ruta antigua.
+        res.clearCookie("refreshToken", {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+            path: "/api/auth"
+        });
+
+        // Guardar la sesión con la misma configuración
+        // utilizada por el login tradicional.
+        res.cookie("refreshToken", result.refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+            maxAge: 24 * 60 * 60 * 1000,
+            path: "/api"
+        });
+
+        res.status(200).json({
+            message: "Inicio de sesión con Google exitoso",
+            token: result.token,
+            user: result.user
+        });
+
+    } catch (error) {
+        if (error instanceof GoogleAuthError) {
+            res.status(error.statusCode).json({
+                message: error.message
+            });
+            return;
+        }
+
+        console.error("Error al iniciar sesión con Google:", error);
+
+        res.status(500).json({
+            message: "Error interno al iniciar sesión con Google"
         });
     }
 };
