@@ -37,7 +37,7 @@ El usuario puede aportar y retirar dinero libremente. La meta es informativa y n
 | `amount` | Importe positivo del movimiento |
 | `created_at` | Fecha del movimiento |
 
-**Migración:** `012_create_savings_spaces.up.sql`
+**Migración:** `013_create_savings_spaces.up.sql`
 
 ## 3. Endpoints
 

@@ -1,6 +1,6 @@
-
 import { walletRepository, DEFAULT_WALLET_ID } from "../data/wallet.store";
 import { currencyService } from "./currency.service";
+import { feeService } from "./fee.service";
 import { AppError } from "../utils/appError";
 import {
   CurrencyCode,
@@ -8,6 +8,7 @@ import {
   WalletRepository,
 } from "../types/wallet.types";
 import { postgresWalletRepository } from "../data/postgres-wallet.repository";
+import { findWalletIdByRecipient } from "./recipient.service";
 
 // Monto máximo permitido por operación.
 export const MAX_AMOUNT = 1_000_000_000_000;
@@ -52,13 +53,22 @@ const validateAmount = (amount: number): void => {
 };
 
 /**
+ * Dado el texto que escribió el usuario (correo o número de cuenta),
+ * devuelve el id de la billetera del destinatario, o null si no existe.
+ */
+export type RecipientResolver = (
+  recipient: string
+) => Promise<string | null>;
+
+/**
  * Crea el servicio con un repositorio específico.
  *
  * Permite utilizar el repositorio en memoria
  * o el repositorio PostgreSQL.
  */
 export const createTransactionService = (
-  repo: WalletRepository
+  repo: WalletRepository,
+  resolveRecipient: RecipientResolver = async () => null
 ) => {
   /**
    * Comprueba que el repositorio admita
@@ -84,6 +94,7 @@ export const createTransactionService = (
   return {
     /**
      * Registra un depósito.
+     * Los depósitos no cobran comisión.
      *
      * Se conserva el orden de parámetros utilizado
      * por los controladores y las pruebas.
@@ -141,6 +152,10 @@ export const createTransactionService = (
 
     /**
      * Convierte dinero entre monedas.
+     *
+     * La comisión depende del par de monedas y se calcula sobre el
+     * monto de origen. Se descuenta de lo que se convierte: al usuario
+     * se le debita el monto completo y recibe el neto convertido.
      */
     async convert(
       from: CurrencyCode,
@@ -165,9 +180,20 @@ export const createTransactionService = (
 
       validateAmount(amount);
 
-      // Calcular la conversión.
+      // Comisión sobre el monto de origen; se descuenta de lo que se convierte.
+      const feeAmount = feeService.conversionFee(amount, from, to);
+      const netAmount = round2(amount - feeAmount);
+
+      if (netAmount <= 0) {
+        throw new AppError(
+          "El monto es demasiado pequeño para cubrir la comisión",
+          400
+        );
+      }
+
+      // Calcular la conversión sobre el monto neto.
       const conversion = currencyService.convert(
-        amount,
+        netAmount,
         from,
         to
       );
@@ -198,6 +224,7 @@ export const createTransactionService = (
           amount,
           convertedAmount,
           conversion.rate,
+          feeAmount,
           description
         );
       }
@@ -226,7 +253,7 @@ export const createTransactionService = (
 
       const targetAmount = targetBalance?.amount ?? 0;
 
-      // Descontar la moneda de origen.
+      // Descontar la moneda de origen (monto completo, comisión incluida).
       await writer.setBalance(
         walletId,
         from,
@@ -251,6 +278,148 @@ export const createTransactionService = (
         rateUsed: conversion.rate,
         status: "completed",
         description,
+        feeAmount,
+        feeCurrency: from,
+      });
+    },
+
+    /**
+     * Transfiere dinero a otro usuario.
+     *
+     * Cada billetera registra su propio movimiento:
+     * transfer_out para quien envía y transfer_in para quien recibe.
+     * Devuelve el movimiento del emisor.
+     *
+     * Si la transferencia tiene comisión, la paga el emisor además
+     * del monto. El destinatario recibe el monto exacto.
+     */
+    async transfer(
+      toAlias: unknown,
+      currency: CurrencyCode,
+      amount: number,
+      description?: string,
+      fromWalletId: string = DEFAULT_WALLET_ID
+    ): Promise<Transaction> {
+      if (typeof toAlias !== "string" || !toAlias.trim()) {
+        throw new AppError(
+          "El alias del destinatario es obligatorio",
+          400
+        );
+      }
+
+      if (!currencyService.isSupported(currency)) {
+        throw new AppError("Moneda no soportada", 400);
+      }
+
+      validateAmount(amount);
+
+      const alias = toAlias.trim().toLowerCase();
+
+      const toWalletId = await resolveRecipient(alias);
+
+      if (!toWalletId) {
+        throw new AppError("Destinatario no encontrado", 404);
+      }
+
+      if (toWalletId === fromWalletId) {
+        throw new AppError(
+          "No puedes transferirte a ti mismo",
+          400
+        );
+      }
+
+      // Comisión de la transferencia y total que se le debita al emisor.
+      const feeAmount = feeService.transferFee(amount);
+      const totalDebit = round2(amount + feeAmount);
+
+      const sentDescription =
+        description ?? `Transferencia a ${alias}`;
+      const receivedDescription =
+        description ?? "Transferencia recibida";
+
+      // PostgreSQL: operación atómica.
+      if (repo.transferAtomic) {
+        return repo.transferAtomic(
+          fromWalletId,
+          toWalletId,
+          currency,
+          amount,
+          feeAmount,
+          sentDescription,
+          receivedDescription
+        );
+      }
+
+      // Repositorio en memoria: si algo falla, se restaura todo.
+      if (
+        !repo.withTransaction ||
+        !repo.setBalance ||
+        !repo.saveTransaction
+      ) {
+        throw new AppError(
+          "El repositorio no admite esta operación",
+          500
+        );
+      }
+
+      return repo.withTransaction(async (tx) => {
+        const source = await tx.getBalance(
+          fromWalletId,
+          currency
+        );
+
+        // El emisor necesita saldo para el monto y la comisión.
+        if (!source || source.amount < totalDebit) {
+          throw new AppError("Saldo insuficiente", 400);
+        }
+
+        const target = await tx.getBalance(
+          toWalletId,
+          currency
+        );
+
+        await tx.setBalance!(
+          fromWalletId,
+          currency,
+          round2(source.amount - totalDebit)
+        );
+
+        await tx.setBalance!(
+          toWalletId,
+          currency,
+          round2((target?.amount ?? 0) + amount)
+        );
+
+        // Una fila para cada lado: cada billetera ve su movimiento.
+        const sent = await tx.saveTransaction!({
+          walletId: fromWalletId,
+          counterpartyWalletId: toWalletId,
+          type: "transfer_out",
+          currencyFrom: currency,
+          currencyTo: currency,
+          amountFrom: amount,
+          amountTo: amount,
+          rateUsed: 1,
+          status: "completed",
+          description: sentDescription,
+          feeAmount,
+          feeCurrency: currency,
+        });
+
+        await tx.saveTransaction!({
+          walletId: toWalletId,
+          counterpartyWalletId: fromWalletId,
+          type: "transfer_in",
+          currencyFrom: currency,
+          currencyTo: currency,
+          amountFrom: amount,
+          amountTo: amount,
+          rateUsed: 1,
+          status: "completed",
+          description: receivedDescription,
+        });
+
+        return sent;
       });
     },
 
@@ -273,5 +442,6 @@ export const createTransactionService = (
 export const transactionService = createTransactionService(
   process.env.NODE_ENV === "test"
     ? walletRepository
-    : postgresWalletRepository
+    : postgresWalletRepository,
+  findWalletIdByRecipient
 );

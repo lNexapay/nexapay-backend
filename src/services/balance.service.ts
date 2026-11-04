@@ -103,7 +103,11 @@ export const createBalanceService = (repo: WalletRepository) => ({
   },
 });
 
-// Instancia lista para usar con el repositorio correspondiente.
+// Instancia lista para usar con el repositorio en memoria.
+/**
+ * En las pruebas usamos datos simulados.
+ * En los demás entornos usamos PostgreSQL.
+ */
 export const balanceService = createBalanceService(
   process.env.NODE_ENV === "test"
     ? walletRepository

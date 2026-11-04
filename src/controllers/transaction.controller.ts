@@ -62,3 +62,26 @@ export const getTransactions = async (
     next(error);
   }
 };
+
+export const transfer = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { toAlias, currency, amount, description } = req.body;
+    const walletId = await getWalletId(res);
+
+    const tx = await transactionService.transfer(
+      toAlias,
+      String(currency).toUpperCase(),
+      amount,
+      description,
+      walletId
+    );
+
+    res.status(201).json(tx);
+  } catch (error) {
+    next(error);
+  }
+};

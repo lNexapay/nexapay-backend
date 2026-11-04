@@ -3,6 +3,7 @@ import {
   convert,
   deposit,
   getTransactions,
+  transfer,
 } from "../controllers/transaction.controller";
 
 const router = Router();
@@ -101,5 +102,42 @@ router.post("/convert", convert);
  *         description: Lista de operaciones
  */
 router.get("/transactions", getTransactions);
+
+/**
+ * @swagger
+ * /api/transfers:
+ *   post:
+ *     summary: Transfiere dinero a otro usuario por alias
+ *     tags: [Operaciones]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [toAlias, currency, amount]
+ *             properties:
+ *               toAlias:
+ *                 type: string
+ *                 example: juan.nexa
+ *               currency:
+ *                 type: string
+ *                 example: USD
+ *               amount:
+ *                 type: number
+ *                 example: 50
+ *               description:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Transferencia realizada (devuelve el movimiento del emisor)
+ *       400:
+ *         description: Moneda no soportada, monto inválido, saldo insuficiente o transferencia a uno mismo
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Destinatario no encontrado
+ */
+router.post("/transfers", transfer);
 
 export default router;

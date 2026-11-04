@@ -1,5 +1,5 @@
 
--- Migración 012: crear espacios de ahorro y sus movimientos.
+-- Migración 013: crear espacios de ahorro y sus movimientos.
 -- Cada espacio pertenece a una billetera y utiliza una sola moneda.
 
 CREATE TABLE savings_spaces (

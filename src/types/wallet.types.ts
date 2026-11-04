@@ -27,13 +27,14 @@ export interface BalanceSnapshot {
   reservedBalances: ReservedBalance[];
 }
 
-export type TransactionType = "deposit" | "convert" | "transfer";
+export type TransactionType = "deposit" | "convert" | "transfer_out" | "transfer_in";
 export type TransactionStatus = "pending" | "completed" | "failed";
 
 export interface Transaction {
   id: string;
   walletId: string;
   contextId?: string;
+  counterpartyWalletId?: string;
   type: TransactionType;
   currencyFrom: CurrencyCode;
   currencyTo: CurrencyCode;
@@ -42,6 +43,8 @@ export interface Transaction {
   rateUsed: number;
   status: TransactionStatus;
   description?: string;
+  feeAmount?: number;           // comisión cobrada en esta operación
+  feeCurrency?: CurrencyCode;   // moneda de la comisión
   createdAt: Date;
 }
 
@@ -67,6 +70,8 @@ export interface TotalBalance {
     convertedAmount: number;
   }[];
 }
+
+
 
 export interface WalletRepository {
   // Consultas de balances disponibles.
@@ -118,6 +123,24 @@ export interface WalletRepository {
     amount: number,
     convertedAmount: number,
     rate: number,
+    feeAmount: number,
     description?: string
   ): Promise<Transaction>;
+
+  // Transferencia entre dos billeteras en una sola operación atómica (PostgreSQL).
+  transferAtomic?(
+    fromWalletId: string,
+    toWalletId: string,
+    currency: CurrencyCode,
+    amount: number,
+    feeAmount: number,
+    sentDescription: string,
+    receivedDescription: string
+  ): Promise<Transaction>;
+
+  // Ejecuta varias escrituras como una unidad; si algo falla, se revierten (memoria).
+  withTransaction?<T>(
+    fn: (repo: WalletRepository) => Promise<T>
+  ): Promise<T>;
 }
+
