@@ -23,11 +23,17 @@ const router = Router();
  */
 router.get("/balances", getBalances);
 
+
 /**
  * @swagger
  * /api/balances/total:
  *   get:
- *     summary: Balance total convertido a una moneda base
+ *     summary: Patrimonio total convertido a una moneda base
+ *     description: >
+ *       Calcula el patrimonio de la billetera incluyendo el dinero
+ *       disponible y el reservado en espacios de ahorro.
+ *       Los fondos reservados forman parte del patrimonio, pero
+ *       no están disponibles para gastos, conversiones o transferencias.
  *     tags: [Saldos]
  *     security:
  *       - bearerAuth: []
@@ -36,15 +42,54 @@ router.get("/balances", getBalances);
  *         name: base
  *         schema:
  *           type: string
- *           example: USD
- *         description: Moneda base (por defecto USD)
+ *           enum: [ARS, USD, EUR, COP]
+ *           default: USD
+ *         description: Moneda utilizada para expresar el patrimonio total
  *     responses:
- *       401:
- *         description: Sin sesión o token inválido
  *       200:
- *         description: Total y desglose por moneda
+ *         description: Patrimonio total y desglose por moneda
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 walletId:
+ *                   type: string
+ *                   description: Identificador de la billetera
+ *                 baseCurrency:
+ *                   type: string
+ *                   example: ARS
+ *                 total:
+ *                   type: number
+ *                   example: 100000
+ *                 breakdown:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       currencyCode:
+ *                         type: string
+ *                         example: ARS
+ *                       amount:
+ *                         type: number
+ *                         description: Saldo total de la moneda, disponible más reservado
+ *                         example: 100000
+ *                       availableAmount:
+ *                         type: number
+ *                         description: Saldo disponible para operaciones
+ *                         example: 98900
+ *                       reservedAmount:
+ *                         type: number
+ *                         description: Saldo guardado en espacios de ahorro
+ *                         example: 1100
+ *                       convertedAmount:
+ *                         type: number
+ *                         description: Patrimonio de esa moneda convertido a la moneda base
+ *                         example: 100000
  *       400:
  *         description: Moneda base no soportada
+ *       401:
+ *         description: Sin sesión o token inválido
  */
 router.get("/balances/total", getTotalBalance);
 

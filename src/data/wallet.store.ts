@@ -1,7 +1,9 @@
 import { randomUUID } from "crypto";
 import {
   Balance,
+  BalanceSnapshot,
   CurrencyCode,
+  ReservedBalance,
   Transaction,
   WalletRepository,
 } from "../types/wallet.types";
@@ -72,6 +74,31 @@ export class InMemoryWalletRepository implements WalletRepository {
     this.ensureWallet(walletId);
     return [...this.balances.values()].filter((b) => b.walletId === walletId);
   }
+  // El repositorio en memoria todavía no implementa espacios de ahorro.
+  // Por eso, durante las pruebas, no hay dinero reservado.
+  async getReservedBalances(
+    walletId: string
+  ): Promise<ReservedBalance[]> {
+    this.ensureWallet(walletId);
+    return [];
+  }
+
+  // Obtiene una copia de los saldos disponibles y reservados.
+  // En memoria, actualmente no existen espacios de ahorro.
+  async getBalanceSnapshot(
+    walletId: string
+  ): Promise<BalanceSnapshot> {
+    this.ensureWallet(walletId);
+
+    const balances = [...this.balances.values()]
+      .filter((balance) => balance.walletId === walletId)
+      .map((balance) => ({ ...balance }));
+
+    return {
+      balances,
+      reservedBalances: [],
+    };
+  }
 
   async getBalance(
     walletId: string,
@@ -133,7 +160,7 @@ export class InMemoryWalletRepository implements WalletRepository {
   }
 }
 
-  
+
 
 // Instancia única que usarán los servicios.
 export const walletRepository: WalletRepository = new InMemoryWalletRepository();

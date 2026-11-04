@@ -9,7 +9,9 @@
 import pool from "../config/database";
 import {
     Balance,
+    BalanceSnapshot,
     CurrencyCode,
+    ReservedBalance,
     Transaction,
 } from "../types/wallet.types";
 import { AppError } from "../utils/appError";
@@ -56,6 +58,94 @@ export const postgresWalletRepository = {
         );
 
         return result.rows.map(mapBalance);
+    },
+    /**
+     * Obtiene el dinero reservado en espacios de ahorro,
+     * agrupado por moneda.
+     *
+     * No modifica los balances disponibles.
+     */
+    async getReservedBalances(walletId: string): Promise<ReservedBalance[]> {
+        const result = await pool.query(
+            `SELECT
+       currency_code,
+       COALESCE(SUM(amount), 0) AS amount
+     FROM savings_spaces
+     WHERE wallet_id = $1
+     GROUP BY currency_code
+     ORDER BY currency_code`,
+            [walletId]
+        );
+
+        return result.rows.map((row) => ({
+            currencyCode: row.currency_code,
+            amount: Number(row.amount),
+        }));
+    },
+
+    /**
+     * Obtiene los saldos disponibles y reservados
+     * mediante una única consulta SQL.
+     *
+     * PostgreSQL utiliza la misma instantánea de datos
+     * para ambos conjuntos de saldos.
+     */
+    async getBalanceSnapshot(walletId: string): Promise<BalanceSnapshot> {
+        const result = await pool.query(
+            `SELECT
+       COALESCE(
+         (
+           SELECT json_agg(
+             json_build_object(
+               'id', b.id,
+               'walletId', b.wallet_id,
+               'currencyCode', b.currency_code,
+               'amount', b.amount,
+               'updatedAt', b.updated_at
+             )
+             ORDER BY b.currency_code
+           )
+           FROM balances b
+           WHERE b.wallet_id = $1
+         ),
+         '[]'::json
+       ) AS balances,
+       COALESCE(
+         (
+           SELECT json_agg(
+             json_build_object(
+               'currencyCode', s.currency_code,
+               'amount', s.amount
+             )
+             ORDER BY s.currency_code
+           )
+           FROM (
+             SELECT currency_code, SUM(amount) AS amount
+             FROM savings_spaces
+             WHERE wallet_id = $1
+             GROUP BY currency_code
+           ) s
+         ),
+         '[]'::json
+       ) AS reserved_balances`,
+            [walletId]
+        );
+
+        const row = result.rows[0];
+
+        return {
+            balances: row.balances.map((balance: any) => ({
+                id: balance.id,
+                walletId: balance.walletId,
+                currencyCode: balance.currencyCode,
+                amount: Number(balance.amount),
+                updatedAt: new Date(balance.updatedAt),
+            })),
+            reservedBalances: row.reserved_balances.map((reserved: any) => ({
+                currencyCode: reserved.currencyCode,
+                amount: Number(reserved.amount),
+            })),
+        };
     },
 
     /**
