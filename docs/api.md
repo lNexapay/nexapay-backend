@@ -21,6 +21,7 @@ Este documento tiene dos partes: **cómo está hoy** la API y **hacia dónde que
 | `POST` | `/api/deposit` | Bearer + cookie | Ingreso simulado `{ currency, amount, description? }` | Listo (en memoria) |
 | `POST` | `/api/convert` | Bearer + cookie | Conversión `{ from, to, amount, description? }`. Cobra comisión según el par (`src/config/fees.ts`): se debita el monto completo y `amountTo` ya viene neto; la respuesta incluye `feeAmount` y `feeCurrency` | Listo (en memoria) |
 | `GET` | `/api/transactions?limit=20` | Bearer + cookie | Historial del usuario, más recientes primero | Listo (en memoria) |
+| `POST` | `/api/ai/chat` | Bearer + cookie | Pregunta al asistente NEXAPAY AI sobre la cuenta del usuario (solo consulta, no ejecuta operaciones) `{ message, history? }`. Responde `{ reply }`. Usa saldos, movimientos, tasas y comisiones del usuario. `message` hasta 500 caracteres; de `history` se usan los últimos 10 mensajes y el servidor no guarda conversaciones. Límite de 5 consultas por minuto por usuario | Listo (requiere `GEMINI_API_KEY`) |
 
 Las rutas de wallet están ligadas al usuario autenticado: cada usuario tiene su propia wallet de demostración (con saldos de ejemplo) y no ve la de otros. Los montos tienen un máximo por operación de 1.000.000.000.000. Los saldos viven en memoria y se reinician al reiniciar el servidor, hasta conectar PostgreSQL.
 
