@@ -27,7 +27,20 @@ export const geminiProvider: AiProvider = {
       // La librería es un módulo ES: se carga con import() dinámico, y solo al usarla,
       // así la app arranca aunque falte la clave.
       const { GoogleGenAI } = await import("@google/genai");
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          timeout: 4_000,
+          retryOptions: {
+            attempts: 3,
+            initialDelay: 0.5,
+            maxDelay: 1,
+            expBase: 2,
+            jitter: 0.2,
+            httpStatusCodes: [503],
+          },
+        },
+      });
 
       const response = await ai.models.generateContent({
         model: AI_CONFIG.model,
