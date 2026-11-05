@@ -9,9 +9,22 @@ export const createRateLimiter = (options: {
   message?: string;
 }) => {
   const hits = new Map<string, number[]>();
+  let lastSweep = Date.now();
 
   return (req: Request, res: Response, next: NextFunction) => {
     const now = Date.now();
+
+    // Una vez por ventana se descartan los usuarios sin consultas recientes,
+    // para que el mapa no crezca indefinidamente.
+    if (now - lastSweep >= options.windowMs) {
+      for (const [key, times] of hits) {
+        if (times.every((time) => now - time >= options.windowMs)) {
+          hits.delete(key);
+        }
+      }
+      lastSweep = now;
+    }
+
     const key = options.keyOf(req, res);
     const recent = (hits.get(key) ?? []).filter(
       (time) => now - time < options.windowMs
