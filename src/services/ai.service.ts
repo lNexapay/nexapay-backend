@@ -172,7 +172,7 @@ export const createAiService = (
     } catch (error: any) {
       if (error instanceof AppError) throw error;
       // No se registra el contenido de la conversación, solo el tipo de fallo.
-            console.error(
+      console.error(
         "[ai] fallo del proveedor:",
         error?.status ?? error?.name,
         String(error?.message ?? "").slice(0, 200)
