@@ -1,6 +1,6 @@
 export const AI_CONFIG = {
-  model: process.env.AI_MODEL ?? "gemini-2.5-flash-lite",
-  maxOutputTokens: 500,
+  model: process.env.AI_MODEL ?? "gemini-3.5-flash-lite",
+  maxOutputTokens: 1000,
   maxMessageLength: 500,
   maxHistoryMessages: 10,
   timeoutMs: 15_000,
