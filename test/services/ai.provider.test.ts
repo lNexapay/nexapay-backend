@@ -54,7 +54,7 @@ describe("geminiProvider", () => {
         expect(mocks.constructor).toHaveBeenCalledWith({
             apiKey: "clave-ficticia",
             httpOptions: {
-                timeout: 4_000,
+                timeout: 12_000,
                 retryOptions: {
                     attempts: 3,
                     initialDelay: 0.5,

@@ -3,7 +3,7 @@ export const AI_CONFIG = {
   maxOutputTokens: 1000,
   maxMessageLength: 500,
   maxHistoryMessages: 10,
-  timeoutMs: 15_000,
+  timeoutMs: 35_000,
   // Límite por usuario (el plan gratuito del proveedor es bajo y compartido).
   rateLimitWindowMs: 60_000,
   rateLimitMax: 5,

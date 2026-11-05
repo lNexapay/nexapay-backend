@@ -91,7 +91,7 @@ describe("aiService", () => {
   });
 
   it("traduce un fallo del proveedor a 503", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => { });
     const service = createAiService(
       { ask: vi.fn().mockRejectedValue(new Error("boom")) },
       async () => ""
@@ -115,7 +115,7 @@ describe("aiService", () => {
 
   it("responde 503 si el proveedor tarda demasiado", async () => {
     const service = createAiService(
-      { ask: () => new Promise<string>(() => {}) },
+      { ask: () => new Promise<string>(() => { }) },
       async () => "",
       { timeoutMs: 20 }
     );
@@ -146,4 +146,48 @@ describe("buildUserContext", () => {
     expect(text).toContain("Balance total estimado");
     expect(text).toContain("Comisiones de conversión");
   });
+
+  it("cancela la solicitud cuando supera el tiempo límite", async () => {
+    vi.useFakeTimers();
+
+    try {
+      let signal: AbortSignal | undefined;
+
+      const ask = vi.fn(
+        ({ abortSignal }: { abortSignal?: AbortSignal }) => {
+          signal = abortSignal;
+
+          // Simula una solicitud que nunca responde.
+          return new Promise<string>(() => { });
+        }
+      );
+
+      const service = createAiService(
+        { ask },
+        async () => "",
+        { timeoutMs: 1000 }
+      );
+
+      const request = service.chat("hola", [], "wallet-1");
+
+      // Evita que Vitest informe un rechazo no manejado.
+      const result = expect(request).rejects.toMatchObject({
+        statusCode: 503,
+      });
+
+      // Permite que termine la carga del contexto.
+      await vi.advanceTimersByTimeAsync(0);
+
+      // Simula el vencimiento del timeout.
+      await vi.advanceTimersByTimeAsync(1000);
+
+      await result;
+
+      expect(ask).toHaveBeenCalledTimes(1);
+      expect(signal?.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
 });

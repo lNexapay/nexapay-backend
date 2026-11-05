@@ -8,11 +8,15 @@ export interface ChatMessage {
 
 // Contrato del proveedor: cambiar de proveedor es escribir otro archivo con esta forma.
 export interface AiProvider {
-  ask(input: { system: string; messages: ChatMessage[] }): Promise<string>;
+  ask(input: {
+    system: string;
+    messages: ChatMessage[];
+    abortSignal?: AbortSignal;
+  }): Promise<string>;
 }
 
 export const geminiProvider: AiProvider = {
-  async ask({ system, messages }) {
+  async ask({ system, messages, abortSignal }) {
     // Evita gastar la clave si un test olvida simular el proveedor.
     if (process.env.NODE_ENV === "test") {
       throw new AppError("El asistente está desactivado en las pruebas", 503);
@@ -30,7 +34,7 @@ export const geminiProvider: AiProvider = {
       const ai = new GoogleGenAI({
         apiKey,
         httpOptions: {
-          timeout: 4_000,
+          timeout: 12_000,
           retryOptions: {
             attempts: 3,
             initialDelay: 0.5,
@@ -51,6 +55,7 @@ export const geminiProvider: AiProvider = {
         config: {
           systemInstruction: system,
           maxOutputTokens: AI_CONFIG.maxOutputTokens,
+          abortSignal,
         },
       });
 
